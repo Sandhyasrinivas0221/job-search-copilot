@@ -1,0 +1,38 @@
+{
+  "id": "workflow-gap-closer",
+  "name": "Gap Closer Agent",
+  "description": "Generates personalized learning plans based on skill demand and rejection patterns",
+  "version": "1.0.0",
+  "category": "workflow",
+  "sealed_abilities": {
+    "can_read": ["skill_demand", "applications", "status_history"],
+    "can_write": ["learning_tasks"],
+    "cannot": ["apply_to_jobs", "change_application_statuses"],
+    "audit_table": "agent_audit_logs"
+  },
+  "escalation_rules": [
+    {
+      "condition": "repeated_rejections_same_stage",
+      "action": "increase_focus_on_stage",
+      "description": "If multiple rejections at same stage, prioritize that skill area"
+    },
+    {
+      "condition": "user_progressing_well",
+      "action": "increase_difficulty",
+      "description": "If user completes tasks, increase difficulty level"
+    }
+  ],
+  "inputs": {
+    "trending_skills": "SkillDemand[]",
+    "rejection_history": "Application[]"
+  },
+  "outputs": {
+    "learning_tasks_created": "number",
+    "interview_prep_packs": "number",
+    "resources_curated": "number"
+  },
+  "scheduling": {
+    "default_cron": "0 8 * * *",
+    "description": "Run daily at 8:00 AM"
+  }
+}

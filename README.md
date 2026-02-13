@@ -1,395 +1,567 @@
 # Job Search Copilot 🚀
 
-A comprehensive, multi-agent job search assistant built with Next.js 14, TypeScript, and Supabase. This intelligent system automates job application tracking, skill analysis, learning planning, and email synchronization to streamline your job search journey.
+**Ship Faster-Powered Multi-Agent Job Search System**
 
-## 🎯 Features
+A production-ready, intelligent job search automation platform built with Next.js 14, TypeScript, Supabase, and inspired by **Ship Faster** patterns. This system runs 6 autonomous agents that work independently to automate job application tracking, market analysis, skill development planning, and daily email reports.
 
-### 6 Intelligent Agents
+## ✨ What's New (Ship Faster Integration)
 
-**1. Mail Agent – Inbox Listener**
-- Automatically reads and parses emails from Gmail/Outlook
-- Detects application status changes: received, interview scheduled, offer, rejection, OA sent
-- Extracts company, role, and dates from email content
-- Creates and updates Application records with StatusHistory
-- Escalates ambiguous emails to NEEDS_REVIEW for manual verification
+✅ **Skills-Based Architecture** - Each agent is a reusable "skill" with metadata (`skill.json`) and sealed boundaries
+✅ **Scheduled Job Automation** - Vercel Cron jobs + node-cron for reliable agent execution
+✅ **RLS Policies** - Row-Level Security on all tables for data isolation
+✅ **Approval Gates** - Status changes can require approval before confirmation
+✅ **Agent Audit Logs** - Complete audit trail of all agent actions
+✅ **Email System** - Built-in support for Resend + SMTP with daily 9 AM summaries
+✅ **Escalation Framework** - Agents can escalate ambiguous situations to human review
 
-**2. Tracker Agent – Pipeline Manager**
-- Derives application status from StatusHistory event log
-- Auto-archives early rejections (screening stage)
-- Marks applications as NO_RESPONSE if no updates for 14 days
-- Suggests follow-up if APPLIED > 7 days without progress
-- Maintains accurate daysInStage and lastUpdate metrics
+---
 
-**3. Job Market Agent – Role Finder**
-- Searches multiple job boards (Indeed, LinkedIn, GitHub Jobs)
-- Classifies jobs as EASY_APPLY vs MANUAL_APPLY
-- Calculates match scores based on your skills
-- Stores job suggestions with relevance data
-- Escalates low interview rate to trigger strategy adjustments
+## 🤖 The 6 Agents (Ship Faster Skills)
 
-**4. Skill Research Agent – Market Scanner**
-- Analyzes job descriptions to extract required skills
-- Clusters skills into themes (Java Core, Spring, Microservices, Cloud, etc.)
-- Tracks skill frequency and detects rising trends
-- Identifies skill gaps between your profile and market demand
-- Provides data for Learning Planner prioritization
+### 1. **Workflow: Mail Listener** (`skills/workflow-mail-listener/`)
+Monitors email inboxes and detects job application status changes.
 
-**5. Learning Planner Agent – Gap Closer**
-- Generates weekly learning plans based on skill demand
-- Creates interview prep packs for roles where rejections occurred
-- Produces structured learning tasks with resources
-- Links learning tasks to specific applications
-- Escalates repeated rejections at same stage for targeted coaching
+**Sealed Abilities**:
+- ✅ Can: Read emails, create/update Applications, create StatusHistory
+- ❌ Cannot: Send emails, apply to jobs
 
-**6. System Observer Agent – Metrics & Daily Email**
-- Computes dashboards: applications per week, interview rate, offer rate
-- Builds daily and weekly summary views
-- Sends email at 9:00 AM with job recommendations
-- Generates easy-apply and manual-apply job classifications
-- Detects escalations (e.g., zero interview rate) and alerts other agents
+**Event Detection**:
+- Application received
+- Interview scheduled
+- Technical assessment (OA) sent
+- Rejection
+- Job offer
+- Interview feedback
 
-## 🏗️ Architecture
+**Escalation**:
+- Ambiguous emails → `NEEDS_REVIEW` status
+- Cannot extract company → Log for manual review
 
-### Tech Stack
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript (strict mode)
-- **Database**: Supabase (PostgreSQL)
-- **Styling**: Tailwind CSS
-- **Scheduling**: next-cron/node-cron (for agent triggers)
-- **Email**: Resend API (optional, can be customized)
+**Schedule**: Every 5 minutes (`*/5 * * * *`)
 
-### Sealed Abilities
+### 2. **Workflow: Tracker** (`skills/workflow-tracker/`)
+Manages application pipeline with automatic status derivation and escalation.
 
-Each agent has strict boundaries to prevent conflicts:
+**Sealed Abilities**:
+- ✅ Can: Read/update Applications, create StatusHistory
+- ❌ Cannot: Read raw emails, create new applications
 
-| Agent | Can Do | Cannot Do |
-|-------|--------|-----------|
-| Mail Agent | Read emails, create/update apps | Send emails, apply to jobs |
-| Tracker Agent | Update status, archive apps | Read raw emails, create apps |
-| Job Market Agent | Search jobs, create suggestions | Submit applications |
-| Skill Research Agent | Analyze descriptions, extract skills | Modify Applications table |
-| Learning Planner Agent | Create learning tasks, gen plans | Apply to jobs, change statuses |
-| System Observer Agent | Read all records, compute metrics | Modify any data |
+**Automation Rules**:
+- `APPLIED → FOLLOW_UP_SUGGESTED` (after 7 days)
+- `APPLIED → NO_RESPONSE` (after 14 days with no update)
+- `REJECTED` (within 3 days) → `ARCHIVED` (early rejection)
+- Updates `daysInStage` field daily
 
-### Database Schema
+**Schedule**: Every 10 minutes (`*/10 * * * *`)
+
+### 3. **Workflow: Role Finder** (`skills/workflow-role-finder/`)
+Searches job boards and creates intelligent job suggestions.
+
+**Sealed Abilities**:
+- ✅ Can: Search jobs, create JobSuggestions, calculate match scores
+- ❌ Cannot: Submit applications, modify Applications
+
+**Features**:
+- Multi-source job aggregation (Indeed, LinkedIn, GitHub)
+- Skill-based match scoring (0-100)
+- Easy Apply detection
+- Duplicate prevention
+
+**Escalation**:
+- High rejection rate → Widen search criteria
+- Increasing offers → Prioritize similar roles
+
+**Schedule**: Hourly (`0 * * * *`)
+
+### 4. **Workflow: Market Scanner** (`skills/workflow-market-scanner/`)
+Analyzes job market to identify trending skills and skill gaps.
+
+**Sealed Abilities**:
+- ✅ Can: Analyze job descriptions, create/update SkillDemand
+- ❌ Cannot: Modify Applications, modify JobSuggestions
+
+**Intelligence**:
+- Extracts 40+ distinct skills
+- Clusters into 10 themes (Java Core, Spring, Cloud, etc.)
+- Detects rising trends (offer/rejection ratio)
+- Tracks frequency metrics
+
+**Escalation**:
+- Trending skill user lacks → Alert Learning Planner
+
+**Schedule**: Daily at 11:00 AM (`0 11 * * *`)
+
+### 5. **Workflow: Gap Closer** (`skills/workflow-gap-closer/`)
+Generates personalized learning plans based on market demand and rejection patterns.
+
+**Sealed Abilities**:
+- ✅ Can: Create LearningTasks, read SkillDemand & rejection history
+- ❌ Cannot: Apply to jobs, change application statuses
+
+**Features**:
+- Weekly learning plan generation
+- Interview prep packs for challenging roles
+- Resource curation by topic
+- Difficulty progression
+
+**Escalation**:
+- Repeated rejections at same stage → Increase focus
+- User progressing well → Increase difficulty
+
+**Schedule**: Daily at 8:00 AM (`0 8 * * *`)
+
+### 6. **Workflow: Metrics Reporter** (`skills/workflow-metrics-reporter/`)
+Computes dashboard metrics and sends daily job recommendations via email.
+
+**Sealed Abilities**:
+- ✅ Can: Read all tables, compute metrics, send emails
+- ❌ Cannot: Modify any data
+
+**Daily Email (9:00 AM)**:
+- Dashboard metrics (interview %, offer %, rejection %)
+- New job suggestions ranked by match score
+- Easy Apply opportunities highlighted
+- Learning task reminders
+
+**Escalation**:
+- Zero interview rate with 5+ apps → Alert Job Market + Learning Planner
+
+**Schedule**: Daily at 9:00 AM (`0 9 * * *`)
+
+---
+
+## 🏗️ Project Structure
+
+```
+job-search-copilot/
+├── skills/                    ← Ship Faster-style agent definitions
+│   ├── workflow-mail-listener/
+│   │   ├── skill.json         (metadata + sealed abilities)
+│   │   └── index.ts           (implementation)
+│   ├── workflow-tracker/
+│   ├── workflow-role-finder/
+│   ├── workflow-market-scanner/
+│   ├── workflow-gap-closer/
+│   └── workflow-metrics-reporter/
+│
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── agents/          (Agent trigger endpoints)
+│   │   │   ├── cron/            (Vercel Cron routes)
+│   │   │   └── ...
+│   │   ├── dashboard/           (UI components)
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── globals.css
+│   │
+│   ├── lib/
+│   │   ├── supabase.ts          (Supabase client)
+│   │   ├── db.ts                (CRUD operations)
+│   │   ├── agent-logger.ts      (Audit logging)
+│   │   ├── scheduled-jobs.ts    (Cron config)
+│   │   ├── email-system.ts      (Email utilities)
+│   │   └── ...
+│   │
+│   └── types/
+│       └── index.ts             (130+ TypeScript interfaces)
+│
+├── supabase/
+│   └── migrations/
+│       ├── 001_init.sql         (Initial schema)
+│       └── 002_add_rls_and_approval_gates.sql
+│
+├── vercel.json                  (Cron job definitions)
+└── .env.local.example           (Configuration template)
+```
+
+---
+
+## 📊 Database Schema
+
+### Core Tables (with RLS Policies)
+
+| Table | Purpose | RLS Policy |
+|-------|---------|-----------|
+| `users` | User profiles & skills | Users see own data |
+| `applications` | Job applications | Users see own applications |
+| `status_history` | Event log (audit) | Users see own history |
+| `job_suggestions` | Discovered opportunities | Users see own suggestions |
+| `skill_demand` | Market analysis data | Users see own skill data |
+| `learning_tasks` | Generated learning activities | Users see own tasks |
+| `agent_audit_logs` | Agent action history | Users see own audit logs |
+| `email_logs` | Email delivery tracking | Users see own email logs |
+| `scheduled_jobs` | Job scheduling config | Users configure own jobs |
+
+### Sealed Access (via RLS)
+
+Each agent has row-level security policies:
 
 ```sql
-users                 -- User profiles and skills
-applications          -- Job applications with metadata
-status_history        -- Event log of application status changes
-job_suggestions       -- Discovered roles awaiting review
-skill_demand          -- Market skill analysis and trends
-learning_tasks        -- Generated learning activities
+-- Example: Mail Agent can only write StatusHistory with specific fields
+CREATE POLICY "Mail Agent can create status history"
+  ON status_history FOR INSERT
+  WITH CHECK (detected_by = 'mail-listener-agent' AND auth.uid() = user_id);
 ```
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- Supabase account (https://supabase.com)
-- (Optional) Resend account for email (https://resend.com)
-- (Optional) Gmail/Outlook IMAP credentials for email sync
+- Node.js 18+
+- npm/yarn
+- Supabase account (free tier)
+- (Optional) Resend API key for email
+- (Optional) Gmail/Outlook credentials for email syncing
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repo-url>
-   cd job-search-copilot
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables**
-   ```bash
-   cp .env.local.example .env.local
-   ```
-
-   Fill in your Supabase credentials:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   ```
-
-4. **Set up Supabase database**
-   ```bash
-   # Connect to Supabase and run the migration
-   # Copy contents of supabase/migrations/001_init.sql
-   # Paste into Supabase SQL editor and execute
-   ```
-
-5. **Run development server**
-   ```bash
-   npm run dev
-   ```
-
-6. **Open browser**
-   ```
-   http://localhost:3000
-   ```
-
-## 📚 API Reference
-
-### Agent Trigger Endpoints
-
-**Mail Agent**
 ```bash
-POST /api/agents/mail
-Content-Type: application/json
+# Clone repository
+git clone https://github.com/Sandhyasrinivas0221/job-search-copilot.git
+cd job-search-copilot
 
+# Install dependencies
+npm install
+
+# Set up environment
+cp .env.local.example .env.local
+```
+
+### Configuration
+
+Edit `.env.local`:
+
+```env
+# Supabase (required)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# Email (required for daily summaries)
+RESEND_API_KEY=re_xxx
+SYSTEM_EMAIL_FROM=noreply@jobsearchcopilot.com
+
+# Cron Security (for Vercel deployment)
+CRON_SECRET=your-secure-random-string
+
+# (Optional) Email polling
+GMAIL_EMAIL=your@gmail.com
+GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+```
+
+### Database Setup
+
+1. Create Supabase project
+2. Run migrations:
+   ```sql
+   -- In Supabase SQL Editor
+   -- Paste contents of supabase/migrations/001_init.sql
+   -- Paste contents of supabase/migrations/002_add_rls_and_approval_gates.sql
+   ```
+
+### Run Locally
+
+```bash
+npm run dev
+```
+
+Visit: `http://localhost:3000`
+
+---
+
+## 🔌 API & Scheduled Execution
+
+### Manual Agent Trigger (for testing)
+
+```bash
+# Trigger Mail Listener
+curl -X POST http://localhost:3000/api/agents/mail-listener \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "demo-user"}'
+
+# Trigger Tracker
+curl -X POST http://localhost:3000/api/agents/tracker \
+  -H "Content-Type: application/json" \
+  -d '{"userId": "demo-user"}'
+```
+
+### Vercel Cron Deployment
+
+On Vercel, the `vercel.json` file automatically configures cron jobs:
+
+```json
 {
-  "userId": "user-id",
-  "emails": [
-    {
-      "from": "noreply@company.com",
-      "subject": "Interview Scheduled for Senior Developer",
-      "body": "...",
+  "crons": [
+    { "path": "/api/cron/mail-listener", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/tracker", "schedule": "*/10 * * * *" },
+    { "path": "/api/cron/role-finder", "schedule": "0 * * * *" },
+    { "path": "/api/cron/market-scanner", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/gap-closer", "schedule": "0 8 * * *" },
+    { "path": "/api/cron/metrics-reporter", "schedule": "0 9 * * *" }
+  ]
+}
+```
+
+Agents run automatically on the specified schedules.
+
+---
+
+## 🎯 Usage Examples
+
+### Create a Test User
+
+```bash
+curl -X POST http://localhost:3000/api/users \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "full_name": "Test User",
+    "skills": ["JavaScript", "React", "Node.js", "PostgreSQL"]
+  }'
+```
+
+### Simulate Email Processing
+
+```bash
+curl -X POST http://localhost:3000/api/agents/mail-listener \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "demo-user",
+    "emails": [{
+      "from": "recruiter@company.com",
+      "subject": "Interview Scheduled - Senior Developer at TechCorp",
+      "body": "We would like to schedule an interview for next week...",
       "timestamp": "2026-02-13T10:00:00Z"
-    }
-  ]
-}
+    }]
+  }'
 ```
 
-**Tracker Agent**
+### View Dashboard Metrics
+
 ```bash
-POST /api/agents/tracker
-{
-  "userId": "user-id"
-}
-
-Response:
-{
-  "success": true,
-  "metrics": {
-    "applicationsByStage": { "APPLIED": 5, "INTERVIEW": 2, ... },
-    "applicationsWithoutUpdate": [...],
-    "needsFollowUp": [...],
-    "earlyRejections": [...]
-  }
-}
+curl http://localhost:3000/api/metrics?userId=demo-user
 ```
 
-**Job Market Agent**
-```bash
-POST /api/agents/job-market
-{
-  "userId": "user-id"
-}
+---
 
-Response:
-{
-  "success": true,
-  "jobsFound": 12,
-  "suggestions": [...]
-}
-```
+## 🔒 Security & Data Isolation
 
-**Learning Planner Agent**
-```bash
-POST /api/agents/learning-planner
-{
-  "userId": "user-id"
-}
+### Row-Level Security (RLS)
 
-Response:
-{
-  "success": true,
-  "weeklyPlan": [
-    {
-      "topic": "System Design",
-      "tasks": [...],
-      "estimatedHours": 10,
-      "resources": [...],
-      "priority": "HIGH"
-    }
-  ]
-}
-```
+All tables have RLS enabled:
+- Users can only see their own data
+- Agents can only write to specific tables with specific fields
+- Audit logs track all agent actions
 
-**System Observer Agent**
-```bash
-POST /api/agents/system-observer
-{
-  "userId": "user-id",
-  "sendEmail": true
-}
+### Sealed Abilities Enforcement
 
-Response:
-{
-  "success": true,
-  "metrics": { ... },
-  "escalations": { "lowInterviewRate": false }
-}
-```
-
-### Data Retrieval Endpoints
-
-**Get Metrics**
-```bash
-GET /api/metrics?userId=user-id
-```
-
-**Get Applications**
-```bash
-GET /api/applications?userId=user-id
-```
-
-**Get Job Suggestions**
-```bash
-GET /api/suggestions?userId=user-id&applied=false&dismissed=false
-```
-
-**Get Learning Tasks**
-```bash
-GET /api/learning-tasks?userId=user-id&completed=false
-```
-
-## 🎨 Dashboard Components
-
-- **Home**: Overview with key metrics
-- **Pipeline Board**: Kanban-style view of applications by stage
-- **Job Suggestions**: Recommended roles sorted by match score
-- **Metrics**: Detailed analytics (interview rate, offer rate, top companies)
-- **Learning Plan**: Skill development tasks and progress tracking
-
-## 🔧 Customization
-
-### Adding New Job Sources
-
-Edit `src/agents/job-market-agent.ts`:
+Each agent is restricted via TypeScript + RLS:
 
 ```typescript
-private simulateCustomJobResults(): JobListingRaw[] {
-  const roles = [
+// ❌ Mail Agent CANNOT do this (typing prevents it)
+async function maliciousApplyToJob() {
+  // Cannot submit applications - NOT IN SEALED ABILITIES
+  await supabase.from('applications').insert(...)  // Type error
+}
+
+// ✅ Mail Agent CAN do this (within sealed abilities)
+async function processEmailEvent() {
+  await supabase.from('status_history').insert(...)  // Allowed
+}
+```
+
+### Approval Gates (Optional)
+
+Sensitive operations can require approval:
+
+```typescript
+// When Mail Agent detects ambiguous event
+await updateApplication({
+  status_change_pending: true,  // Flag for approval
+  current_status: 'NEEDS_REVIEW'
+})
+
+// User approves in UI before agent proceeds
+```
+
+---
+
+## 📚 Adding New Agents
+
+To add a new agent following Ship Faster patterns:
+
+1. **Create skill directory**:
+   ```bash
+   mkdir -p skills/workflow-my-agent
+   ```
+
+2. **Create `skill.json`**:
+   ```json
+   {
+     "id": "workflow-my-agent",
+     "name": "My Agent",
+     "sealed_abilities": {
+       "can_read": ["table1"],
+       "can_write": ["table2"],
+       "cannot": ["sensitive_operation"]
+     },
+     "scheduling": {
+       "default_cron": "0 */6 * * *"
+     }
+   }
+   ```
+
+3. **Implement `index.ts`**:
+   ```typescript
+   export async function runMyAgent(userId: string): Promise<Result> {
+     // Agent logic
+   }
+   ```
+
+4. **Create API route**:
+   ```typescript
+   // src/app/api/agents/my-agent/route.ts
+   ```
+
+5. **Add Vercel Cron** in `vercel.json`:
+   ```json
+   { "path": "/api/cron/my-agent", "schedule": "..." }
+   ```
+
+---
+
+## 📊 Dashboard Features
+
+- **Pipeline Kanban**: View applications by stage (APPLIED, SCREENING, INTERVIEW, OFFER, ARCHIVED)
+- **Metrics**: Interview rate, offer rate, rejection rate, applications per week
+- **Job Suggestions**: Ranked by match score with easy apply filters
+- **Learning Plan**: Track skill development tasks with progress
+- **Audit Trail**: View all agent actions and status changes
+
+---
+
+## 🛠️ Customization
+
+### Add Job Board Source
+
+Update `skills/workflow-role-finder/index.ts`:
+
+```typescript
+async function searchCustomJobBoard(): Promise<JobListingRaw[]> {
+  // API call to your job board
+  return [
     {
       title: "...",
       company: "...",
       url: "...",
       source: "custom-board",
-      easyApply: true,
-    },
+      easyApply: true
+    }
   ]
-  return roles
 }
 ```
 
-### Modifying Email Detection Patterns
+### Customize Email Template
 
-Edit `src/agents/mail-agent.ts`:
+Edit `src/lib/email-system.ts`:
 
 ```typescript
-const EMAIL_PATTERNS = {
-  applicationReceived: [
-    /your-custom-pattern/i,
-  ],
-  // ...
+export function buildDailyEmailHTML(...): string {
+  // Modify HTML template
 }
 ```
 
-### Adjusting Escalation Thresholds
+### Change Skill Themes
+
+Edit `skills/workflow-market-scanner/index.ts`:
 
 ```typescript
-// src/agents/tracker-agent.ts
-const NO_RESPONSE_THRESHOLD_DAYS = 14      // Adjust as needed
-const FOLLOW_UP_SUGGESTION_DAYS = 7        // Adjust as needed
+const SKILL_CLUSTERS = {
+  "My Theme": ["skill1", "skill2"],
+  // Add more themes
+}
 ```
-
-## 📊 Understanding Agent Flow
-
-```
-User Inbox (Gmail/Outlook)
-         ↓
-    Mail Agent (reads emails, detects events)
-         ↓
-    Application + StatusHistory created/updated
-         ↓
-    Tracker Agent (runs periodically)
-         ↓
-    Updates daysInStage, marks NO_RESPONSE, archives rejections
-         ↓
-    Job Market Agent (searches job boards)
-         ↓
-    Creates JobSuggestion records
-         ↓
-    Skill Research Agent (analyzes descriptions)
-         ↓
-    Updates SkillDemand with trends
-         ↓
-    Learning Planner Agent (plans based on skills + rejections)
-         ↓
-    Creates LearningTask records
-         ↓
-    System Observer Agent (computes metrics, sends email)
-         ↓
-    Dashboard + Email notifications
-```
-
-## 🛡️ Error Handling & Logging
-
-All agents include:
-- Comprehensive try-catch blocks
-- Detailed console logging with [AgentName] prefix
-- Graceful escalation to NEEDS_REVIEW for ambiguous scenarios
-- Error tracking in StatusHistory for visibility
-
-Example:
-```
-[MailAgent] Processing 5 emails for user abc123
-[MailAgent] Detected event: INTERVIEW_SCHEDULED from recruiter@company.com
-[MailAgent] Created status history entry for TechCorp Senior Developer role
-[TrackerAgent] Marked TechCorp as FOLLOW_UP_SUGGESTED after 7 days
-```
-
-## 📋 Environment Variables
-
-See `.env.local.example` for complete list. Key variables:
-
-```env
-# Supabase (required)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-
-# Email (optional)
-RESEND_API_KEY=
-SYSTEM_EMAIL_FROM=
-SYSTEM_EMAIL_TO=
-
-# Email Sync (optional)
-GMAIL_EMAIL=
-GMAIL_APP_PASSWORD=
-OUTLOOK_EMAIL=
-OUTLOOK_PASSWORD=
-
-# Agent Intervals (milliseconds)
-MAIL_AGENT_CHECK_INTERVAL=300000        # 5 minutes
-TRACKER_AGENT_CHECK_INTERVAL=600000     # 10 minutes
-JOB_MARKET_AGENT_CHECK_INTERVAL=3600000 # 1 hour
-```
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-
-1. Follow the TypeScript strict mode conventions
-2. Maintain sealed boundaries between agents
-3. Add comprehensive logging
-4. Include error handling
-5. Update documentation for new features
-
-## 📄 License
-
-MIT
-
-## 🙋 Support
-
-For issues, questions, or feature requests, please open an issue on GitHub.
 
 ---
 
-**Built with ❤️ for job seekers everywhere**
+## 📈 Monitoring & Debugging
+
+### View Agent Audit Logs
+
+```sql
+SELECT * FROM agent_audit_logs
+WHERE user_id = 'demo-user'
+ORDER BY created_at DESC;
+```
+
+### Check Email Delivery
+
+```sql
+SELECT * FROM email_logs
+WHERE user_id = 'demo-user'
+ORDER BY sent_at DESC;
+```
+
+### Monitor Job Storage
+
+```sql
+SELECT COUNT(*) FROM job_suggestions
+WHERE user_id = 'demo-user' AND applied = false;
+```
+
+---
+
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+```bash
+# Connect GitHub repository
+vercel
+```
+
+Vercel automatically:
+- Runs cron jobs per `vercel.json`
+- Sets environment variables
+- Handles scaling
+
+### Self-Hosted
+
+On any Node.js server:
+
+```bash
+npm run build
+npm start
+
+# Or use node-cron for job scheduling
+# (See src/lib/scheduler.ts for patterns)
+```
+
+---
+
+## 📝 License
+
+MIT
+
+## 🤝 Contributing
+
+Contributions welcome! Follow:
+- Ship Faster skill conventions
+- TypeScript strict mode
+- Sealed ability boundaries
+- Comprehensive logging
+
+## 📞 Support
+
+- **Issues**: GitHub Issues
+- **Docs**: See SETUP.md, ARCHITECTURE.md, QUICKSTART.md
+- **Examples**: See `/skills/` directory for agent patterns
+
+---
+
+**Built with ❤️ using Ship Faster patterns**
+
+_"A multi-agent system that actually works like your personal team of job search specialists"_

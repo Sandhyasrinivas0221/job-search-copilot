@@ -1,0 +1,38 @@
+{
+  "id": "workflow-role-finder",
+  "name": "Role Finder Agent",
+  "description": "Searches job boards and creates job suggestions matched to user skills",
+  "version": "1.0.0",
+  "category": "workflow",
+  "sealed_abilities": {
+    "can_read": ["users", "job_suggestions"],
+    "can_write": ["job_suggestions"],
+    "cannot": ["submit_applications", "modify_applications"],
+    "audit_table": "agent_audit_logs"
+  },
+  "escalation_rules": [
+    {
+      "condition": "high_rejection_rate",
+      "action": "widen_search_criteria",
+      "description": "If rejection rate > 50%, broaden search parameters"
+    },
+    {
+      "condition": "offers_increasing",
+      "action": "prioritize_similar_roles",
+      "description": "If offer rate improves, favor similar role profiles"
+    }
+  ],
+  "inputs": {
+    "user_skills": "string[]",
+    "preferences": "object"
+  },
+  "outputs": {
+    "jobs_found": "number",
+    "suggestions_created": "number",
+    "duplicates_skipped": "number"
+  },
+  "scheduling": {
+    "default_cron": "0 * * * *",
+    "description": "Run hourly"
+  }
+}

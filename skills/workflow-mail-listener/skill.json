@@ -1,0 +1,41 @@
+{
+  "id": "workflow-mail-listener",
+  "name": "Mail Listener Agent",
+  "description": "Monitors email inboxes (Gmail/Outlook) and detects job application status changes",
+  "version": "1.0.0",
+  "category": "workflow",
+  "sealed_abilities": {
+    "can_read": ["emails"],
+    "can_write": ["applications", "status_history"],
+    "cannot": ["send_emails", "apply_to_jobs"],
+    "audit_table": "agent_audit_logs"
+  },
+  "escalation_rules": [
+    {
+      "condition": "ambiguous_email_event",
+      "action": "set_status_to_NEEDS_REVIEW",
+      "description": "When email event type cannot be determined"
+    },
+    {
+      "condition": "company_role_not_found",
+      "action": "escalate_to_human_review",
+      "description": "When company or role cannot be extracted from email"
+    }
+  ],
+  "inputs": {
+    "emails": {
+      "type": "EmailParsed[]",
+      "description": "Email messages to process"
+    }
+  },
+  "outputs": {
+    "applications_created": "number",
+    "status_history_entries": "number",
+    "escalations": "number"
+  },
+  "scheduling": {
+    "default_cron": "*/5 * * * *",
+    "description": "Run every 5 minutes"
+  },
+  "dependencies": ["@supabase/supabase-js"]
+}

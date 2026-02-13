@@ -1,0 +1,28 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/mail-listener",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/tracker",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/role-finder",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/market-scanner",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/gap-closer",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/metrics-reporter",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

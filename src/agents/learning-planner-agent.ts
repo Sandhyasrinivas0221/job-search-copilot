@@ -13,9 +13,8 @@
  * - If repeated rejections at same stage, increase focus on that area
  */
 
-import { LearningPlanItem, InterviewPrepPack, LearningTask, SkillDemand, Application } from "@/types"
-import { getTrendingSkills, createLearningTask, getApplicationsByStatus, getLearningTasks } from "@/lib/db"
-import { ApplicationStatus } from "@/types"
+import { LearningPlanItem, InterviewPrepPack, LearningTask, SkillDemand, Application, ApplicationStatus } from "../types"
+import { getTrendingSkills, createLearningTask, getApplicationsByStatus, getLearningTasks } from "../lib/db"
 
 const INTERVIEW_QUESTIONS: Record<string, string[]> = {
   "System Design": [

@@ -1,0 +1,32 @@
+{
+  "id": "workflow-market-scanner",
+  "name": "Market Scanner Agent",
+  "description": "Analyzes job descriptions to extract required skills and detect market trends",
+  "version": "1.0.0",
+  "category": "workflow",
+  "sealed_abilities": {
+    "can_read": ["job_suggestions", "applications"],
+    "can_write": ["skill_demand"],
+    "cannot": ["modify_applications", "modify_job_suggestions"],
+    "audit_table": "agent_audit_logs"
+  },
+  "escalation_rules": [
+    {
+      "condition": "trending_skill_user_missing",
+      "action": "notify_learning_planner",
+      "description": "Alert Learning Planner of high-demand skill user lacks"
+    }
+  ],
+  "inputs": {
+    "job_descriptions": "string[]"
+  },
+  "outputs": {
+    "skills_extracted": "number",
+    "skill_clusters": "number",
+    "trending_skills": "number"
+  },
+  "scheduling": {
+    "default_cron": "0 11 * * *",
+    "description": "Run daily at 11:00 AM"
+  }
+}

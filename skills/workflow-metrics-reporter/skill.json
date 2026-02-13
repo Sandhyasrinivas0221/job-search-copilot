@@ -1,0 +1,31 @@
+{
+  "id": "workflow-metrics-reporter",
+  "name": "Metrics Reporter Agent",
+  "description": "Computes dashboard metrics and sends daily 9:00 AM job recommendations email",
+  "version": "1.0.0",
+  "category": "workflow",
+  "sealed_abilities": {
+    "can_read": ["applications", "status_history", "job_suggestions", "skill_demand", "learning_tasks"],
+    "can_write": ["email_logs"],
+    "cannot": ["modify_any_data"],
+    "audit_table": "agent_audit_logs"
+  },
+  "escalation_rules": [
+    {
+      "condition": "zero_interview_rate_5_plus_apps",
+      "action": "alert_job_market_and_learning_planner",
+      "description": "If no interviews with 5+ applications, alert other agents"
+    }
+  ],
+  "inputs": {},
+  "outputs": {
+    "metrics_computed": "object",
+    "email_sent": "boolean",
+    "escalations": "number"
+  },
+  "scheduling": {
+    "default_cron": "0 9 * * *",
+    "description": "Run daily at 9:00 AM",
+    "email_dispatch": "Send curated job suggestions email"
+  }
+}

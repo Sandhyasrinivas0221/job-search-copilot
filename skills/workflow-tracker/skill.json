@@ -1,0 +1,40 @@
+{
+  "id": "workflow-tracker",
+  "name": "Tracker Agent",
+  "description": "Manages the application pipeline: derives status from events, auto-archives rejections, marks stale applications",
+  "version": "1.0.0",
+  "category": "workflow",
+  "sealed_abilities": {
+    "can_read": ["applications", "status_history"],
+    "can_write": ["applications", "status_history"],
+    "cannot": ["read_raw_emails", "create_new_applications"],
+    "audit_table": "agent_audit_logs"
+  },
+  "escalation_rules": [
+    {
+      "condition": "applied_7_days_no_progress",
+      "action": "set_status_FOLLOW_UP_SUGGESTED",
+      "description": "Suggest follow-up after 7 days in APPLIED state"
+    },
+    {
+      "condition": "no_update_14_days",
+      "action": "set_status_NO_RESPONSE",
+      "description": "Mark as NO_RESPONSE if no updates for 14 days"
+    },
+    {
+      "condition": "rejected_within_3_days",
+      "action": "auto_archive",
+      "description": "Auto-archive early rejections (screening stage)"
+    }
+  ],
+  "inputs": {},
+  "outputs": {
+    "applications_updated": "number",
+    "status_changes": "number",
+    "escalations": "number"
+  },
+  "scheduling": {
+    "default_cron": "*/10 * * * *",
+    "description": "Run every 10 minutes"
+  }
+}
