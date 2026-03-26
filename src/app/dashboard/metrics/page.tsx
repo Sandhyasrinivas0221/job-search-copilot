@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { DashboardMetrics } from "@/types"
 
 export default function MetricsPage() {
@@ -9,12 +10,25 @@ export default function MetricsPage() {
   const [userId, setUserId] = useState("")
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const userId = urlParams.get("userId") || "demo-user"
-    setUserId(userId)
-
     const fetchMetrics = async () => {
       try {
+        setLoading(true)
+
+        // Get current user
+        const { createClient } = await import("@supabase/supabase-js")
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+        )
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        // Fallback to test user for development
+        const userId = user?.id || "00000000-0000-0000-0000-000000000001"
+        setUserId(userId)
+
         const res = await fetch(`/api/metrics?userId=${userId}`)
         const data = await res.json()
         if (data.metrics) {
@@ -46,7 +60,28 @@ export default function MetricsPage() {
       <div className="min-h-screen bg-gray-50">
         <header className="bg-white shadow">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <h1 className="text-3xl font-bold text-gray-900">Metrics</h1>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to home"
+              >
+                <svg
+                  className="w-6 h-6 text-gray-700"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </Link>
+              <h1 className="text-3xl font-bold text-gray-900">Metrics</h1>
+            </div>
           </div>
         </header>
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -60,8 +95,31 @@ export default function MetricsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Performance Metrics</h1>
-          <p className="mt-2 text-gray-600">Track your job search progress</p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Back to home"
+            >
+              <svg
+                className="w-6 h-6 text-gray-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </Link>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Performance Metrics</h1>
+              <p className="mt-2 text-gray-600">Track your job search progress</p>
+            </div>
+          </div>
         </div>
       </header>
 

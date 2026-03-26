@@ -4,6 +4,40 @@
 
 A production-ready, intelligent job search automation platform built with Next.js 14, TypeScript, Supabase, and inspired by **Ship Faster** patterns. This system runs 6 autonomous agents that work independently to automate job application tracking, market analysis, skill development planning, and daily email reports.
 
+> **⚠️ BREAKING CHANGE (v1.0.0)**: Production deployment requires security updates. See [PRODUCTION_DEPLOYMENT_GUIDE.md](./PRODUCTION_DEPLOYMENT_GUIDE.md) before deploying!
+
+---
+
+## 🚀 NEW: Phase 5 - Learning Path Service (Production Ready)
+
+✅ Analyzes job requirements & identifies skill gaps
+✅ Recommends FREE learning resources (70+ curated)
+✅ Suggests easier career transitions
+✅ Market-aware recommendations using trending skills
+✅ Multi-user support with full data isolation
+✅ Cost tracking & rate limiting included
+
+**Test it**:
+```bash
+curl -X POST "http://localhost:3000/api/cron/trigger-learning-paths?userId=<user-id>"
+```
+
+---
+
+## 🔐 Production Security (NEW)
+
+Added for v1.0.0:
+- ✅ Rate limiting middleware (prevent DDoS)
+- ✅ Cost tracking & daily budgets (prevent bill shock)
+- ✅ Data isolation by user (multi-tenant ready)
+- ✅ Environment-based secrets (no hardcoded keys)
+
+**URGENT**: See [PRODUCTION_DEPLOYMENT_GUIDE.md](./PRODUCTION_DEPLOYMENT_GUIDE.md) to:
+- Revoke exposed API keys
+- Remove test/debug code
+- Set up rate limiting
+- Configure cost tracking
+
 ## ✨ What's New (Ship Faster Integration)
 
 ✅ **Skills-Based Architecture** - Each agent is a reusable "skill" with metadata (`skill.json`) and sealed boundaries

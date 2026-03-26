@@ -20,14 +20,17 @@ const EMAIL_PATTERNS = {
   applicationReceived: [
     /confirmation.*receipt|received.*application|application.*confirm/i,
     /thanks.*applying|thank you for your interest|application.*submitted/i,
+    /(?:junior|senior|lead|staff)\s+(?:software\s+)?engineer|developer|analyst|manager|specialist/i,
+    /job.*posting|indeed|matched.*job|you.*may.*like/i,
+    /@\s*[\w\s]/i,
   ],
   interviewScheduled: [
     /interview.*scheduled|schedule.*interview|interview.*today|interview.*tomorrow/i,
-    /meeting.*set|call.*scheduled|let's talk/i,
+    /meeting.*set|call.*scheduled|let's talk|phone.*screen/i,
   ],
   offer: [
     /offer|congratul|excited to extend|we're pleased|we'd like to offer/i,
-    /joining.*team|start date|compensation/i,
+    /joining.*team|start date|compensation|salary/i,
   ],
   rejection: [
     /reject|unfortunately|not move forward|decline|passing|don't go forward/i,
@@ -35,7 +38,7 @@ const EMAIL_PATTERNS = {
   ],
   oaOrAssignment: [
     /coding challenge|assignment|take-home|assessment|OA|online assessment/i,
-    /test.*available|complete.*test|problem.*solve/i,
+    /test.*available|complete.*test|problem.*solve|assessment/i,
   ],
   feedback: [
     /feedback|next round|advance|interview feedback|consideration/i,
@@ -134,31 +137,51 @@ export class MailAgent {
    */
   private detectEmailEventType(subject: string, body: string): EmailEventType {
     const content = `${subject} ${body}`.toLowerCase()
+    console.log(`[MailAgent.detectEmailEventType] Subject: "${subject.substring(0, 100)}"`)
 
     for (const pattern of EMAIL_PATTERNS.offer) {
-      if (pattern.test(content)) return EmailEventType.OFFER
+      if (pattern.test(content)) {
+        console.log(`[MailAgent.detectEmailEventType] ✓ Matched OFFER pattern`)
+        return EmailEventType.OFFER
+      }
     }
 
     for (const pattern of EMAIL_PATTERNS.rejection) {
-      if (pattern.test(content)) return EmailEventType.REJECTION
+      if (pattern.test(content)) {
+        console.log(`[MailAgent.detectEmailEventType] ✓ Matched REJECTION pattern`)
+        return EmailEventType.REJECTION
+      }
     }
 
     for (const pattern of EMAIL_PATTERNS.interviewScheduled) {
-      if (pattern.test(content)) return EmailEventType.INTERVIEW_SCHEDULED
+      if (pattern.test(content)) {
+        console.log(`[MailAgent.detectEmailEventType] ✓ Matched INTERVIEW_SCHEDULED pattern`)
+        return EmailEventType.INTERVIEW_SCHEDULED
+      }
     }
 
     for (const pattern of EMAIL_PATTERNS.oaOrAssignment) {
-      if (pattern.test(content)) return EmailEventType.OA_SENT
+      if (pattern.test(content)) {
+        console.log(`[MailAgent.detectEmailEventType] ✓ Matched OA_SENT pattern`)
+        return EmailEventType.OA_SENT
+      }
     }
 
     for (const pattern of EMAIL_PATTERNS.applicationReceived) {
-      if (pattern.test(content)) return EmailEventType.APPLICATION_RECEIVED
+      if (pattern.test(content)) {
+        console.log(`[MailAgent.detectEmailEventType] ✓ Matched APPLICATION_RECEIVED pattern`)
+        return EmailEventType.APPLICATION_RECEIVED
+      }
     }
 
     for (const pattern of EMAIL_PATTERNS.feedback) {
-      if (pattern.test(content)) return EmailEventType.FEEDBACK
+      if (pattern.test(content)) {
+        console.log(`[MailAgent.detectEmailEventType] ✓ Matched FEEDBACK pattern`)
+        return EmailEventType.FEEDBACK
+      }
     }
 
+    console.log(`[MailAgent.detectEmailEventType] ✗ No pattern matched, returning UNKNOWN`)
     return EmailEventType.UNKNOWN
   }
 
@@ -166,14 +189,38 @@ export class MailAgent {
    * Extract company and role from email
    */
   private extractCompanyAndRole(subject: string, body: string): { company: string | null; role: string | null } {
-    // Try to extract from subject first
-    const subjectMatch = subject.match(/(?:from|at|with)\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s+(?:for|role|position|job|–|-|:)|\s*$)/i)
-    const company = subjectMatch ? subjectMatch[1].trim() : null
+    // Try multiple patterns to extract company
+    let company: string | null = null
 
-    const roleMatch = subject.match(/(?:for|role|position|job)\s+([A-Za-z\s]+?)(?:\s+(?:at|from|role|position)|\s*$)/i)
+    // Pattern 1: "Role @ Company" (e.g., "Junior Software Engineer @ Xodus Group")
+    const atMatch = subject.match(/(?:position|role|engineer|developer|manager|analyst)\s+(?:in|@|at)\s+([A-Z][^@\n]+?)(?:\s|$)/i)
+    if (atMatch) {
+      company = atMatch[1].trim()
+    }
+
+    // Pattern 2: "Company" at start of subject (e.g., "Coursera for $239/year")
+    if (!company) {
+      const startMatch = subject.match(/^([A-Z][a-zA-Z\s&.,-]+?)(?:\s+(?:for|is|presents|offers|invites|inviting))/i)
+      if (startMatch) {
+        company = startMatch[1].trim()
+      }
+    }
+
+    // Pattern 3: "from Company" (e.g., "Application from LinkedIn")
+    if (!company) {
+      const fromMatch = subject.match(/(?:from|at|with)\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s+(?:for|role|position|job|–|-|:)|\s*$)/i)
+      if (fromMatch) {
+        company = fromMatch[1].trim()
+      }
+    }
+
+    // Extract role if possible
+    const roleMatch = subject.match(/(?:position|role|for)\s+(?:a\s+)?([A-Za-z\s]+?)(?:\s+(?:at|@|in|from|role|position)|\s*$)/i)
     const role = roleMatch ? roleMatch[1].trim() : null
 
-    return { company, role }
+    console.log(`[MailAgent.extractCompanyAndRole] Subject: "${subject.substring(0, 80)}" => company: "${company}", role: "${role}"`)
+
+    return { company: company ? company.replace(/\s+/g, " ") : null, role }
   }
 
   /**
@@ -230,6 +277,7 @@ export class MailAgent {
       old_status: null,
       new_status: ApplicationStatus.APPLIED,
       reason: "Application confirmation received",
+      notes: null,
       email_subject: email.subject,
       email_body: email.body,
       detected_by: "MailAgent",
@@ -272,6 +320,7 @@ export class MailAgent {
       old_status: application.current_status,
       new_status: ApplicationStatus.INTERVIEW,
       reason: "Interview scheduled",
+      notes: null,
       email_subject: email.subject,
       email_body: email.body,
       detected_by: "MailAgent",
@@ -312,6 +361,7 @@ export class MailAgent {
       old_status: application.current_status,
       new_status: ApplicationStatus.OFFER,
       reason: "Job offer received",
+      notes: null,
       email_subject: email.subject,
       email_body: email.body,
       detected_by: "MailAgent",
@@ -352,6 +402,7 @@ export class MailAgent {
       old_status: application.current_status,
       new_status: ApplicationStatus.REJECTED,
       reason: "Rejection received",
+      notes: null,
       email_subject: email.subject,
       email_body: email.body,
       detected_by: "MailAgent",
@@ -392,6 +443,7 @@ export class MailAgent {
       old_status: application.current_status,
       new_status: ApplicationStatus.SCREENING,
       reason: "Coding challenge or assessment sent",
+      notes: null,
       email_subject: email.subject,
       email_body: email.body,
       detected_by: "MailAgent",
@@ -408,6 +460,7 @@ export class MailAgent {
         old_status: application.current_status,
         new_status: application.current_status,
         reason: "Feedback received",
+        notes: null,
         email_subject: email.subject,
         email_body: email.body,
         detected_by: "MailAgent",

@@ -79,6 +79,9 @@ export class TrackerAgent {
           old_status: ApplicationStatus.APPLIED,
           new_status: ApplicationStatus.FOLLOW_UP_SUGGESTED,
           reason: `No response after ${daysInStage} days`,
+          notes: null,
+          email_subject: null,
+          email_body: null,
           detected_by: "TrackerAgent",
         })
 
@@ -103,6 +106,9 @@ export class TrackerAgent {
           old_status: application.current_status,
           new_status: ApplicationStatus.NO_RESPONSE,
           reason: `No response for ${daysSinceUpdate} days`,
+          notes: null,
+          email_subject: null,
+          email_body: null,
           detected_by: "TrackerAgent",
         })
 

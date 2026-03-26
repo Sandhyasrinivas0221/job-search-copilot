@@ -15,6 +15,7 @@
 
 import { LearningPlanItem, InterviewPrepPack, LearningTask, SkillDemand, Application, ApplicationStatus } from "../types"
 import { getTrendingSkills, createLearningTask, getApplicationsByStatus, getLearningTasks } from "../lib/db"
+import { getSkillPath, getResourcesByDifficulty, ALL_SKILL_PATHS, LearningResource, SkillPath } from "../lib/learning-resources"
 
 const INTERVIEW_QUESTIONS: Record<string, string[]> = {
   "System Design": [
@@ -44,42 +45,6 @@ const INTERVIEW_QUESTIONS: Record<string, string[]> = {
     "What are the challenges of distributed transactions?",
     "How do you monitor a microservices system?",
     "How do you handle versioning in APIs?",
-  ],
-}
-
-const LEARNING_RESOURCES: Record<string, string[]> = {
-  "System Design": [
-    "https://www.youtube.com/watch?v=xpDnVSmNFwY (Grokking System Design)",
-    "https://github.com/donnemartin/system-design-primer",
-    "System Design Interview by Alex Xu",
-  ],
-  "Java Core": [
-    "Effective Java by Joshua Bloch",
-    "Java Concurrency in Practice",
-    "Oracle Java Documentation",
-    "LeetCode Java Problems",
-  ],
-  "Spring Framework": ["Spring in Action", "Baeldung Spring Tutorials", "Spring Official Documentation"],
-  Microservices: [
-    "Building Microservices by Sam Newman",
-    "Docker & Kubernetes Documentation",
-    "Cloud Native Patterns",
-  ],
-  Cloud: [
-    "AWS Certified Solutions Architect",
-    "Google Cloud Architecture Guide",
-    "Azure Architecture Center",
-  ],
-  Testing: [
-    "Working Effectively with Legacy Code by Michael Feathers",
-    "Test Driven Development by Kent Beck",
-    "JUnit Documentation",
-  ],
-  "Data Structures & Algorithms": [
-    "Introduction to Algorithms (CLRS)",
-    "LeetCode",
-    "HackerRank",
-    "InterviewBit",
   ],
 }
 
@@ -128,29 +93,68 @@ export class LearningPlannerAgent {
   }
 
   /**
-   * Create a learning plan item for a specific skill
+   * Create a learning plan item for a specific skill using curated resources
    */
   private async createLearningPlanItem(skill: SkillDemand): Promise<LearningPlanItem> {
-    const resources = LEARNING_RESOURCES[skill.skill_category || ""] || ["Official Documentation", "Online Courses"]
+    // Get the curated skill path from the learning resources library
+    const skillPath = getSkillPath(skill.skill_category || skill.skill_name)
+
+    let resources: string[] = []
+    let estimatedHours = 10
+
+    if (skillPath) {
+      // Use curated resources from the skill path
+      // Select resources based on trending status (intermediate for trending, beginner for others)
+      const difficultyLevel = skill.rising_trend ? "INTERMEDIATE" : "BEGINNER"
+      const selectedResources = getResourcesByDifficulty(skillPath, difficultyLevel)
+
+      // Convert LearningResource objects to URLs for database storage
+      resources = selectedResources.map(
+        (r) => `${r.title} - ${r.url} (${r.platform}, ${r.estimatedHours}h)`
+      )
+
+      // Calculate total estimated hours based on progression
+      // Beginner: start with beginner resources, then intermediate
+      // Intermediate: intermediate + advanced
+      if (skill.rising_trend) {
+        const intermediate = getResourcesByDifficulty(skillPath, "INTERMEDIATE")
+        estimatedHours =
+          selectedResources.reduce((sum, r) => sum + r.estimatedHours, 0) +
+          intermediate.slice(0, 2).reduce((sum, r) => sum + r.estimatedHours, 0)
+      } else {
+        estimatedHours = selectedResources.reduce((sum, r) => sum + r.estimatedHours, 0)
+      }
+    } else {
+      // Fallback if skill path not found
+      resources = [
+        `Learn ${skill.skill_name} - Official Documentation`,
+        `${skill.skill_name} Deep Dive Article`,
+        `${skill.skill_name} Practice Exercises`,
+      ]
+    }
 
     const task = await createLearningTask({
       user_id: this.userId,
       application_id: null,
       title: `Master ${skill.skill_name}`,
-      description: `Learn and practice ${skill.skill_name}. This skill appears in ${skill.frequency} job listings and is trending in the market.`,
+      description: `Learn and practice ${skill.skill_name}. This skill appears in ${skill.frequency} job listings and is${skill.rising_trend ? " trending in the market." : " important for opportunities."} Follow the structured learning path from fundamentals through advanced topics.`,
       topic: skill.skill_category || skill.skill_name,
       difficulty_level: skill.rising_trend ? "INTERMEDIATE" : "BEGINNER",
-      estimated_hours: skill.rising_trend ? 20 : 10,
+      estimated_hours: estimatedHours,
       resources: resources,
+      notes: skillPath
+        ? `Use the structured learning path: ${skillPath.overview}. Start with fundamentals, progress to real-world applications.`
+        : null,
+      completed_at: null,
       priority: skill.rising_trend ? "HIGH" : "MEDIUM",
       completed: false,
-      due_date: this.calculateDueDate(7),
+      due_date: this.calculateDueDate(14),
     })
 
     return {
       topic: skill.skill_category || skill.skill_name,
       tasks: task ? [task] : [],
-      estimatedHours: skill.rising_trend ? 20 : 10,
+      estimatedHours: estimatedHours,
       resources: resources,
       priority: skill.rising_trend ? "HIGH" : "MEDIUM",
     }
@@ -177,15 +181,44 @@ export class LearningPlannerAgent {
     for (const [role, apps] of rejectionsByRole) {
       if (apps.length >= 2) {
         const [jobTitle, company] = role.split("-")
+        const jobTitleTrimmed = jobTitle.trim()
+        const companyTrimmed = company.trim()
+
+        // Get recommended resources based on job title
+        let studyResources: string[] = []
+        const recommendedSkillPaths = this.getSkillPathsForRole(jobTitleTrimmed)
+
+        if (recommendedSkillPaths.length > 0) {
+          // Use the first skill path's advanced resources for interview prep
+          const path = recommendedSkillPaths[0]
+          const advancedResources = getResourcesByDifficulty(path, "ADVANCED")
+          studyResources = advancedResources
+            .slice(0, 3)
+            .map((r) => `${r.title} - ${r.url} (${r.platform})`)
+        } else {
+          // Fallback to system design resources
+          const systemDesignPath = getSkillPath("system-design")
+          if (systemDesignPath) {
+            const advancedResources = getResourcesByDifficulty(systemDesignPath, "ADVANCED")
+            studyResources = advancedResources
+              .slice(0, 3)
+              .map((r) => `${r.title} - ${r.url} (${r.platform})`)
+          } else {
+            studyResources = [
+              "System Design Primer - https://github.com/donnemartin/system-design-primer",
+              "ByteByteGo - https://www.youtube.com/watch?v=xpDnVSmNFwY",
+            ]
+          }
+        }
 
         // Determine what level of interview prep is needed
         const prepPack: InterviewPrepPack = {
-          role: jobTitle.trim(),
-          company: company.trim(),
+          role: jobTitleTrimmed,
+          company: companyTrimmed,
           expectedQuestions: INTERVIEW_QUESTIONS["Behavioral/Soft Skills"].slice(0, 3),
-          modelAnswers: this.generateModelAnswers(jobTitle, company),
-          studyResources: LEARNING_RESOURCES[jobTitle.trim()] || LEARNING_RESOURCES["System Design"],
-          practiceProblems: this.generatePracticeProblems(jobTitle),
+          modelAnswers: this.generateModelAnswers(jobTitleTrimmed, companyTrimmed),
+          studyResources: studyResources,
+          practiceProblems: this.generatePracticeProblems(jobTitleTrimmed),
         }
 
         prepPacks.push(prepPack)
@@ -194,18 +227,20 @@ export class LearningPlannerAgent {
         await createLearningTask({
           user_id: this.userId,
           application_id: apps[0].id,
-          title: `Interview Prep: ${jobTitle}`,
-          description: `Prepare for ${jobTitle} interviews at ${company}. Review expected questions and practice problem-solving.`,
+          title: `Interview Prep: ${jobTitleTrimmed}`,
+          description: `Prepare for ${jobTitleTrimmed} interviews at ${companyTrimmed}. Follow curated resources focused on advanced concepts and interview patterns. Practice with real problem sets.`,
           topic: "Interview Preparation",
-          difficulty_level: "HIGH",
-          estimated_hours: 8,
-          resources: prepPack.studyResources,
+          difficulty_level: "INTERMEDIATE",
+          estimated_hours: 12,
+          resources: studyResources,
+          notes: `After rejections at ${companyTrimmed}, focus on advanced system design and technical depth. Complete all practice problems and mock interviews.`,
+          completed_at: null,
           priority: "HIGH",
           completed: false,
-          due_date: this.calculateDueDate(3),
+          due_date: this.calculateDueDate(7),
         })
 
-        console.log(`[LearningPlannerAgent] Created interview prep pack for ${jobTitle} at ${company}`)
+        console.log(`[LearningPlannerAgent] Created interview prep pack for ${jobTitleTrimmed} at ${companyTrimmed}`)
       }
     }
 
@@ -263,6 +298,55 @@ export class LearningPlannerAgent {
   }
 
   /**
+   * Get skill paths relevant to a job role
+   */
+  private getSkillPathsForRole(jobTitle: string): SkillPath[] {
+    const title = jobTitle.toLowerCase()
+    const relevantPaths: SkillPath[] = []
+
+    // Map job titles to relevant skill paths
+    if (title.includes("frontend") || title.includes("react") || title.includes("vue") || title.includes("angular")) {
+      const path = getSkillPath("frontend")
+      if (path) relevantPaths.push(path)
+    }
+
+    if (title.includes("backend") || title.includes("java") || title.includes("spring")) {
+      const javaPath = getSkillPath("java-core")
+      const springPath = getSkillPath("spring-framework")
+      if (javaPath) relevantPaths.push(javaPath)
+      if (springPath) relevantPaths.push(springPath)
+    }
+
+    if (title.includes("microservices") || title.includes("devops") || title.includes("docker") || title.includes("kubernetes")) {
+      const path = getSkillPath("microservices")
+      if (path) relevantPaths.push(path)
+    }
+
+    if (title.includes("cloud") || title.includes("aws") || title.includes("gcp") || title.includes("azure")) {
+      const path = getSkillPath("cloud")
+      if (path) relevantPaths.push(path)
+    }
+
+    if (title.includes("system design") || title.includes("architect") || title.includes("senior")) {
+      const path = getSkillPath("system-design")
+      if (path) relevantPaths.push(path)
+    }
+
+    if (title.includes("database") || title.includes("sql") || title.includes("postgres")) {
+      const path = getSkillPath("databases")
+      if (path) relevantPaths.push(path)
+    }
+
+    // Default to system design if no match found
+    if (relevantPaths.length === 0) {
+      const defaultPath = getSkillPath("system-design")
+      if (defaultPath) relevantPaths.push(defaultPath)
+    }
+
+    return relevantPaths
+  }
+
+  /**
    * Calculate due date for a learning task
    */
   private calculateDueDate(daysFromNow: number): string {
@@ -280,7 +364,11 @@ export class LearningPlannerAgent {
       amazon: "cloud infrastructure and AWS services",
       microsoft: "enterprise solutions and cloud",
       facebook: "social networks and distributed systems",
+      meta: "social networks and distributed systems",
       apple: "mobile and user experience",
+      netflix: "streaming at scale",
+      uber: "distributed systems and real-time data",
+      spotify: "music streaming and personalization",
     }
 
     return focusMap[company.toLowerCase()] || "innovative technology solutions"
@@ -296,6 +384,7 @@ export class LearningPlannerAgent {
       fullstack: ["system integration", "end-to-end testing", "deployment pipelines"],
       devops: ["container orchestration", "CI/CD pipelines", "infrastructure as code"],
       "system engineer": ["distributed systems", "network optimization", "kernel programming"],
+      architect: ["system design", "scalability planning", "technology selection"],
     }
 
     for (const [key, skills] of Object.entries(skillMap)) {
@@ -306,4 +395,3 @@ export class LearningPlannerAgent {
 
     return "scalable system design"
   }
-}

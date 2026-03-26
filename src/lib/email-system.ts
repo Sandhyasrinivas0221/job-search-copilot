@@ -60,6 +60,7 @@ export async function sendEmailViaResend(options: EmailOptions): Promise<boolean
 export async function sendEmailViaSMTP(options: EmailOptions): Promise<boolean> {
   try {
     // Import nodemailer dynamically to avoid requiring it when not using SMTP
+    // @ts-ignore - nodemailer is optional dependency
     const nodemailer = await import('nodemailer')
 
     const transporter = nodemailer.createTransport({

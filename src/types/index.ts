@@ -225,3 +225,88 @@ export interface PaginatedResponse<T> {
   pageSize: number
   hasMore: boolean
 }
+
+// Email Credentials
+export interface EmailCredentials {
+  id: string
+  user_id: string
+  provider: "gmail" | "smtp"
+  email_address: string
+  is_connected: boolean
+  last_verified_at: string | null
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GmailConfig {
+  refresh_token: string
+  access_token?: string
+  token_expiry?: string
+}
+
+export interface SmtpConfig {
+  host: string
+  port: number
+  username: string
+  password: string
+  use_tls: boolean
+}
+
+// Learning Resource Types
+export interface LearningResource {
+  title: string
+  url: string
+  type: "course" | "article" | "video" | "practice" | "documentation"
+  difficulty: "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+  estimatedHours: number
+  platform: string
+  free: boolean
+  description?: string
+}
+
+export interface SkillPath {
+  skillName: string
+  skillCategory: string
+  overview: string
+  learningPath: {
+    beginner: LearningResource[]
+    intermediate: LearningResource[]
+    advanced: LearningResource[]
+  }
+  practiceResources: LearningResource[]
+  projectIdeas: string[]
+}
+
+export interface StructuredLearningPlan {
+  skillPaths: SkillPath[]
+  nextRecommendedTask: LearningTask | null
+  progress: {
+    tasksCompleted: number
+    hoursLearned: number
+    currentLevel: "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+    estimatedCompletion: string
+  }
+}
+
+// Job Suggestion Enhancement Types
+export interface JobScore {
+  jobId: string
+  matchScore: number
+  skillMatch: {
+    matched: string[]
+    missing: string[]
+  }
+  recommendedLearning: LearningTask[]
+  difficulty: "JUNIOR" | "MID" | "SENIOR"
+}
+
+export interface EnrichedJobSuggestion extends JobSuggestion {
+  matchScore: number
+  matchDetails?: {
+    matchedSkills: string[]
+    missingSkills: string[]
+  }
+  learningGaps?: string[]
+  sourceQuality?: "HIGH" | "MEDIUM" | "LOW"
+}

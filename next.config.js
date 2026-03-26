@@ -1,9 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  typescript: {
-    strictNullChecks: true,
-    noImplicitAny: true,
-  },
-}
+const nextConfig = {}
 
 module.exports = nextConfig
