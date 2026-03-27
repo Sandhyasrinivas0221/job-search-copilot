@@ -143,3 +143,5 @@ tmpclaude-*
 .supabase/
 *.backup
 .env.local
+.env.production.example
+
