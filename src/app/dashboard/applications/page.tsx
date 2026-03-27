@@ -25,8 +25,14 @@ export default function ApplicationsPage() {
           data: { user },
         } = await supabase.auth.getUser()
 
-        // Fallback to test user for development
-        const userId = user?.id || "00000000-0000-0000-0000-000000000001"
+        // TEST DATA: Fallback to test user for development (COMMENTED OUT FOR PRODUCTION)
+        // const userId = user?.id || "00000000-0000-0000-0000-000000000001"
+
+        // PRODUCTION: Require authenticated user
+        if (!user) {
+          throw new Error("User must be authenticated")
+        }
+        const userId = user.id
 
         // Fetch applications with userId parameter
         const res = await fetch(`/api/applications?userId=${userId}`)

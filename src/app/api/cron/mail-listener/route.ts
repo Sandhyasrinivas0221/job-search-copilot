@@ -21,13 +21,19 @@ const supabaseAdmin = createClient(
 
 // Vercel automatically calls this when the cron schedule is triggered
 export async function GET(request: NextRequest) {
-  // Verify the request is from Vercel (optional but recommended)
-  // Skip auth check in development for manual testing
-  if (process.env.NODE_ENV === "production") {
-    const authHeader = request.headers.get("authorization")
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+  // TEST DATA: Skip auth check in development for manual testing (COMMENTED OUT FOR PRODUCTION)
+  // if (process.env.NODE_ENV === "production") {
+  //   const authHeader = request.headers.get("authorization")
+  //   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  //     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  //   }
+  // }
+
+  // PRODUCTION: Always require CRON_SECRET
+  const authHeader = request.headers.get("authorization")
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    console.error("[mail-listener] Unauthorized cron request - missing/invalid CRON_SECRET")
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {

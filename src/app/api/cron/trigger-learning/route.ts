@@ -2,7 +2,7 @@
  * Manual Trigger Endpoint: Generate Learning Plan
  *
  * Allows manual triggering of learning plan generation for a specific user
- * Useful for testing without waiting for scheduled cron jobs
+ * TEST DATA: Useful for testing without waiting for scheduled cron jobs (COMMENTED OUT FOR PRODUCTION)
  *
  * Endpoint: POST /api/cron/trigger-learning?userId=<id>
  *

@@ -41,11 +41,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (!state) {
-      // For testing without state, use a default test UUID
-      console.warn("[oauth-callback] No state parameter provided, using test UUID for development")
+      // TEST DATA: For testing without state, use a default test UUID (COMMENTED OUT FOR PRODUCTION)
+      // console.warn("[oauth-callback] No state parameter provided, using test UUID for development")
+      // return NextResponse.redirect(...)
+
+      // PRODUCTION: Always require state parameter
+      console.error("[oauth-callback] OAuth state missing - rejected for security")
       return NextResponse.redirect(
         `${request.nextUrl.origin}/dashboard/settings?tab=email&error=${encodeURIComponent(
-          "Missing user ID in state - please ensure you're properly authenticated"
+          "Authentication failed: Missing state parameter"
         )}`
       )
     }

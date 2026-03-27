@@ -2,9 +2,10 @@
  * Manual Trigger Endpoint: Search for Jobs
  *
  * Allows manual triggering of job market search for a specific user
- * Useful for testing without waiting for scheduled cron jobs
+ * TEST DATA: Useful for testing without waiting for scheduled cron jobs (COMMENTED OUT FOR PRODUCTION)
  *
  * Endpoint: POST /api/cron/trigger-jobs?userId=<id>
+ * (Note: This agent is DISABLED in production - no free job API available)
  *
  * Query Parameters:
  * - userId (required): User ID to search jobs for
