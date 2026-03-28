@@ -374,24 +374,25 @@ export class LearningPlannerAgent {
     return focusMap[company.toLowerCase()] || "innovative technology solutions"
   }
 
-  /**
-   * Get a random tech skill for the given role
-   */
-  private getRandomTechSkill(jobTitle: string): string {
-    const skillMap: Record<string, string[]> = {
-      backend: ["database optimization", "API design", "microservices architecture"],
-      frontend: ["React performance optimization", "state management", "responsive design"],
-      fullstack: ["system integration", "end-to-end testing", "deployment pipelines"],
-      devops: ["container orchestration", "CI/CD pipelines", "infrastructure as code"],
-      "system engineer": ["distributed systems", "network optimization", "kernel programming"],
-      architect: ["system design", "scalability planning", "technology selection"],
-    }
-
-    for (const [key, skills] of Object.entries(skillMap)) {
-      if (jobTitle.toLowerCase().includes(key)) {
-        return skills[Math.floor(Math.random() * skills.length)]
+    /**
+     * Get a random tech skill for the given role
+     */
+    private getRandomTechSkill(jobTitle: string): string {
+      const skillMap: Record<string, string[]> = {
+        backend: ["database optimization", "API design", "microservices architecture"],
+        frontend: ["React performance optimization", "state management", "responsive design"],
+        fullstack: ["system integration", "end-to-end testing", "deployment pipelines"],
+        devops: ["container orchestration", "CI/CD pipelines", "infrastructure as code"],
+        "system engineer": ["distributed systems", "network optimization", "kernel programming"],
+        architect: ["system design", "scalability planning", "technology selection"],
       }
-    }
 
-    return "scalable system design"
+      for (const [key, skills] of Object.entries(skillMap)) {
+        if (jobTitle.toLowerCase().includes(key)) {
+          return skills[Math.floor(Math.random() * skills.length)]
+        }
+      }
+
+      return "scalable system design"
+    }
   }

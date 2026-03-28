@@ -54,7 +54,9 @@ export async function rateLimit(
   request: NextRequest,
   limitConfig: { windowMs: number; maxRequests: number }
 ): Promise<{ allowed: boolean; remaining: number; resetTime: number }> {
-  const ip = request.ip || "unknown"
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || 
+             request.headers.get("x-real-ip") || 
+             "unknown"
   const userId = request.nextUrl.searchParams.get("userId") || "anonymous"
   const key = `${ip}:${userId}`
 
