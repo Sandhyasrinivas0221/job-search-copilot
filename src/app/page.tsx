@@ -13,16 +13,28 @@ export default function Home() {
         // Get current user
         const supabase = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || ""
         )
 
         const {
           data: { user },
         } = await supabase.auth.getUser()
 
-        // Fallback to test user for development
-        const userId = user?.id || "00000000-0000-0000-0000-000000000001"
+        // TEST DATA: Fallback to test user for development only.
+        // In production, require login and a real user session.
+        const testUserId =
+          process.env.NEXT_PUBLIC_TEST_USER_ID ||
+          "00000000-0000-0000-0000-000000000001"
 
+        if (!user) {
+          console.warn("No supabase user session; using test user id for metrics")
+          const res = await fetch(`/api/metrics?userId=${testUserId}`)
+          const data = await res.json()
+          setMetrics(data.metrics)
+          return
+        }
+
+        const userId = user.id
         // Fetch metrics with userId parameter
         const res = await fetch(`/api/metrics?userId=${userId}`)
         const data = await res.json()

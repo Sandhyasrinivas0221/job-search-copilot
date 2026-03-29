@@ -14,9 +14,12 @@ import { fetchGmailEmails } from "@/lib/gmail-fetcher"
 
 export const runtime = "nodejs"
 
+const supabaseServiceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || ""
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  supabaseServiceRoleKey
 )
 
 // Vercel automatically calls this when the cron schedule is triggered

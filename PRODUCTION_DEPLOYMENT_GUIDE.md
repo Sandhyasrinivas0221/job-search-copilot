@@ -72,8 +72,8 @@ git commit -m "Remove exposed credentials"
   ```bash
   # Production (.env.production / Vercel Secrets)
   NEXT_PUBLIC_SUPABASE_URL=<production-url>
-  NEXT_PUBLIC_SUPABASE_ANON_KEY=<production-key>
-  SUPABASE_SERVICE_ROLE_KEY=<production-key>
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<production-url>
+  SUPABASE_SECRET_KEY=<production-url>
 
   GOOGLE_CLIENT_ID=<production-id>
   GOOGLE_CLIENT_SECRET=<production-secret>

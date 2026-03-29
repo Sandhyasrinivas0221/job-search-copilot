@@ -165,8 +165,8 @@ See `DEPLOYMENT_SUMMARY.md` for checklist
 # Already committed & pushed
 # Just set environment variables in Vercel Dashboard:
 # - NEXT_PUBLIC_SUPABASE_URL (production)
-# - NEXT_PUBLIC_SUPABASE_ANON_KEY (production)
-# - SUPABASE_SERVICE_ROLE_KEY (production)
+# - NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (production)
+# - SUPABASE_SECRET_KEY (production)
 # - GOOGLE_CLIENT_ID (production)
 # - GOOGLE_CLIENT_SECRET (production)
 # - CRON_SECRET (strong random)

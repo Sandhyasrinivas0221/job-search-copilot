@@ -50,8 +50,8 @@ The project uses these key dependencies:
 1. Go to Project Settings → API
 2. Copy and save:
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role secret` → `SUPABASE_SERVICE_ROLE_KEY`
+   - ` publishable key` → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `secret Key` → `SUPABASE_SECRET_KEY`
 
 ### Run Database Migrations
 
@@ -84,8 +84,8 @@ Edit `.env.local` and fill in:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_...
+SUPABASE_SECRET_KEY=sb_...
 ```
 
 ### Optional: Email Delivery (Resend)

@@ -25,8 +25,8 @@ Edit `.env.local` and add your Supabase keys:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_...
+SUPABASE_SECRET_KEY=sb_...
 ```
 
 ### Get your keys:
@@ -76,7 +76,7 @@ curl http://localhost:3000/api/metrics?userId=demo-user
 ## Troubleshooting
 
 **`401 Unauthorized`** from API?
-→ Check `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`
+→ Check `SUPABASE_SECRET_KEY` (or `SUPABASE_SERVICE_ROLE_KEY`) in `.env.local`
 
 **Database tables not found?**
 → Re-run the SQL migration in Supabase SQL Editor
