@@ -8,9 +8,25 @@ import { getClientSession, ClientUserSession } from "@/lib/client-auth"
 export function Navbar() {
   const pathname = usePathname()
   const [session, setSession] = useState<ClientUserSession | null>(null)
+  const [connectedGmail, setConnectedGmail] = useState<string | null>(null)
 
   useEffect(() => {
-    getClientSession().then(setSession)
+    getClientSession().then((s) => {
+      setSession(s)
+      if (s?.userId) {
+        fetch(`/api/email/credentials?userId=${s.userId}`)
+          .then((r) => r.json())
+          .then((data) => {
+            const gmail = data.credentials?.find(
+              (c: any) => c.provider === "gmail" && c.is_connected
+            )
+            if (gmail) {
+              setConnectedGmail(gmail.email_address)
+            }
+          })
+          .catch(() => {})
+      }
+    })
   }, [])
 
   const navItems = [
@@ -60,15 +76,28 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-3">
+            {connectedGmail && (
+              <Link
+                href="/dashboard/settings?tab=email"
+                className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                title="Gmail connected and monitored"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                {connectedGmail}
+              </Link>
+            )}
+
             {session && (
               <div className="flex items-center gap-2">
                 {session.isDemo ? (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800" title={`Active User ID: ${session.userId}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5 animate-pulse"></span>
+                  <span
+                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                    title={`Active User ID: ${session.userId}`}
+                  >
                     Demo Workspace
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
                     {session.user?.email || "Connected"}
                   </span>
