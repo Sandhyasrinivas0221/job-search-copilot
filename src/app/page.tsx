@@ -1,44 +1,26 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { createClient } from "@supabase/supabase-js"
+import Link from "next/link"
+import { getClientSession } from "@/lib/client-auth"
+import { DashboardMetrics } from "@/types"
 
 export default function Home() {
-  const [metrics, setMetrics] = useState<any>(null)
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userSession, setUserSession] = useState<{ userId: string; isDemo: boolean } | null>(null)
 
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        // Get current user
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || ""
-        )
+        const session = await getClientSession()
+        setUserSession({ userId: session.userId, isDemo: session.isDemo })
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        // TEST DATA: Fallback to test user for development only.
-        // In production, require login and a real user session.
-        const testUserId =
-          process.env.NEXT_PUBLIC_TEST_USER_ID ||
-          "00000000-0000-0000-0000-000000000001"
-
-        if (!user) {
-          console.warn("No supabase user session; using test user id for metrics")
-          const res = await fetch(`/api/metrics?userId=${testUserId}`)
-          const data = await res.json()
-          setMetrics(data.metrics)
-          return
-        }
-
-        const userId = user.id
-        // Fetch metrics with userId parameter
-        const res = await fetch(`/api/metrics?userId=${userId}`)
+        const res = await fetch(`/api/metrics?userId=${session.userId}`)
         const data = await res.json()
-        setMetrics(data.metrics)
+        if (data.metrics) {
+          setMetrics(data.metrics)
+        }
       } catch (error) {
         console.error("Failed to fetch metrics:", error)
       } finally {
@@ -50,83 +32,132 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Job Search Copilot</h1>
-          <p className="mt-2 text-gray-600">
-            Multi-agent assistant for your job search journey
-          </p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Hero Header */}
+      <header className="bg-white/80 backdrop-blur border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 mb-3">
+                <span>🤖</span> Autonomous Multi-Agent Copilot
+              </span>
+              <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">
+                Job Search Copilot
+              </h1>
+              <p className="mt-2 text-lg text-gray-600 max-w-2xl">
+                Supercharge your career search with intelligent agents tracking applications, finding matching roles, and closing skill gaps.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/applications"
+                className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 transition-colors"
+              >
+                + Add Application
+              </Link>
+              <Link
+                href="/dashboard/suggestions"
+                className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-white text-gray-700 border border-gray-300 shadow-sm hover:bg-gray-50 transition-colors"
+              >
+                View Matches →
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+            <p className="mt-4 text-gray-600 font-medium">Connecting to job search copilot...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Metrics Cards */}
-            <MetricsCard
-              title="Total Applications"
-              value={metrics?.totalApplications || 0}
-              color="blue"
-            />
-            <MetricsCard
-              title="Interview Rate"
-              value={metrics?.interviewRate || "0%"}
-              color="green"
-            />
-            <MetricsCard
-              title="Offer Rate"
-              value={metrics?.offerRate || "0%"}
-              color="purple"
-            />
-            <MetricsCard
-              title="Rejection Rate"
-              value={metrics?.rejectionRate || "0%"}
-              color="red"
-            />
-          </div>
-        )}
+          <>
+            {/* Metrics Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <MetricsCard
+                title="Total Applications"
+                value={metrics?.totalApplications || 0}
+                subtitle={`${metrics?.applicationsThisWeek || 0} this week`}
+                color="blue"
+                icon="📋"
+              />
+              <MetricsCard
+                title="Interview Rate"
+                value={`${metrics?.interviewRate || 0}%`}
+                subtitle="From submitted apps"
+                color="green"
+                icon="🎯"
+              />
+              <MetricsCard
+                title="Offer Rate"
+                value={`${metrics?.offerRate || 0}%`}
+                subtitle="Conversion to offer"
+                color="purple"
+                icon="🎉"
+              />
+              <MetricsCard
+                title="Rejection Rate"
+                value={`${metrics?.rejectionRate || 0}%`}
+                subtitle="Screening & rounds"
+                color="red"
+                icon="📊"
+              />
+            </div>
 
-        {/* Dashboard Navigation */}
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <DashboardCard
-            title="Pipeline Board"
-            description="View applications by stage"
-            href="/dashboard/pipeline"
-          />
-          <DashboardCard
-            title="Job Suggestions"
-            description="Today's recommended roles"
-            href="/dashboard/suggestions"
-          />
-          <DashboardCard
-            title="Learning Plan"
-            description="Track your skill development"
-            href="/dashboard/learning"
-          />
-          <DashboardCard
-            title="Metrics"
-            description="Detailed performance analytics"
-            href="/dashboard/metrics"
-          />
-          <DashboardCard
-            title="Applications"
-            description="Manage all applications"
-            href="/dashboard/applications"
-          />
-          <DashboardCard
-            title="Settings"
-            description="Configure your agents"
-            href="/dashboard/settings"
-          />
-        </div>
+            {/* Feature Modules */}
+            <div className="mt-10">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Workspaces & Agent Tools</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <DashboardCard
+                  title="Pipeline Board"
+                  description="Visualize and move your job applications through every interview stage."
+                  href="/dashboard/pipeline"
+                  icon="📌"
+                  badge="Kanban"
+                />
+                <DashboardCard
+                  title="Job Suggestions"
+                  description="AI-matched roles scraped from leading platforms based on your skills."
+                  href="/dashboard/suggestions"
+                  icon="💼"
+                  badge="Scored"
+                />
+                <DashboardCard
+                  title="Applications Manager"
+                  description="Full table view of all applications with status tags, company, and dates."
+                  href="/dashboard/applications"
+                  icon="📁"
+                  badge="Active"
+                />
+                <DashboardCard
+                  title="Learning Plan"
+                  description="Curated learning tasks and resources targeted directly at missing job skills."
+                  href="/dashboard/learning"
+                  icon="🎓"
+                  badge="Curated"
+                />
+                <DashboardCard
+                  title="Analytics & Metrics"
+                  description="Deep dive performance metrics, weekly trends, and funnel breakdown."
+                  href="/dashboard/metrics"
+                  icon="📈"
+                  badge="Insights"
+                />
+                <DashboardCard
+                  title="Agent Automation"
+                  description="Configure Mail Listener, Market Scanner, and automatic email digest schedule."
+                  href="/dashboard/settings"
+                  icon="⚙️"
+                  badge="6 Agents"
+                />
+              </div>
+            </div>
+          </>
+        )}
       </main>
     </div>
   )
@@ -135,21 +166,27 @@ export default function Home() {
 interface MetricsCardProps {
   title: string
   value: string | number
+  subtitle: string
   color: "blue" | "green" | "purple" | "red"
+  icon: string
 }
 
-function MetricsCard({ title, value, color }: MetricsCardProps) {
+function MetricsCard({ title, value, subtitle, color, icon }: MetricsCardProps) {
   const colorClasses = {
-    blue: "bg-blue-50 text-blue-600 border-blue-200",
-    green: "bg-green-50 text-green-600 border-green-200",
-    purple: "bg-purple-50 text-purple-600 border-purple-200",
-    red: "bg-red-50 text-red-600 border-red-200",
+    blue: "bg-blue-50/70 border-blue-200 text-blue-900",
+    green: "bg-green-50/70 border-green-200 text-green-900",
+    purple: "bg-purple-50/70 border-purple-200 text-purple-900",
+    red: "bg-red-50/70 border-red-200 text-red-900",
   }
 
   return (
-    <div className={`${colorClasses[color]} border rounded-lg p-6`}>
-      <p className="text-sm font-medium text-gray-600">{title}</p>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
+    <div className={`p-6 rounded-xl border bg-white shadow-sm hover:shadow-md transition-shadow`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-semibold text-gray-500">{title}</span>
+        <span className="text-2xl">{icon}</span>
+      </div>
+      <div className="text-3xl font-extrabold text-gray-900">{value}</div>
+      <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
     </div>
   )
 }
@@ -158,16 +195,31 @@ interface DashboardCardProps {
   title: string
   description: string
   href: string
+  icon: string
+  badge: string
 }
 
-function DashboardCard({ title, description, href }: DashboardCardProps) {
+function DashboardCard({ title, description, href, icon, badge }: DashboardCardProps) {
   return (
-    <a
+    <Link
       href={href}
-      className="block p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+      className="group relative p-6 bg-white rounded-xl shadow-sm border border-gray-100 hover:border-indigo-200 hover:shadow-lg transition-all"
     >
-      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-      <p className="mt-2 text-gray-600">{description}</p>
-    </a>
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-3xl p-2.5 bg-gray-50 rounded-lg group-hover:scale-110 transition-transform">
+          {icon}
+        </span>
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 group-hover:bg-indigo-50 group-hover:text-indigo-700 transition-colors">
+          {badge}
+        </span>
+      </div>
+      <h3 className="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+        {title}
+      </h3>
+      <p className="mt-2 text-sm text-gray-600 line-clamp-2">{description}</p>
+      <div className="mt-4 flex items-center text-xs font-semibold text-indigo-600 gap-1 group-hover:gap-2 transition-all">
+        Open Workspace <span>→</span>
+      </div>
+    </Link>
   )
 }

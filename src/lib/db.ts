@@ -118,6 +118,19 @@ export async function updateApplication(applicationId: string, updates: Partial<
   return data
 }
 
+export async function deleteApplication(applicationId: string): Promise<boolean> {
+  const { error } = await supabaseAdmin
+    .from("applications")
+    .delete()
+    .eq("id", applicationId)
+
+  if (error) {
+    console.error("Error deleting application:", error)
+    return false
+  }
+  return true
+}
+
 export async function getApplicationsByStatus(userId: string, status: ApplicationStatus): Promise<Application[]> {
   const { data, error } = await supabaseAdmin
     .from("applications")

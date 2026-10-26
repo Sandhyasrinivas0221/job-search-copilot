@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { getClientSession } from "@/lib/client-auth"
 import { DashboardMetrics } from "@/types"
 
 export default function MetricsPage() {
@@ -9,247 +10,170 @@ export default function MetricsPage() {
   const [loading, setLoading] = useState(true)
   const [userId, setUserId] = useState("")
 
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        setLoading(true)
-
-        // Get current user
-        const { createClient } = await import("@supabase/supabase-js")
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || ""
-        )
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        // TEST DATA: Fallback to test user for development (COMMENTED OUT FOR PRODUCTION)
-        // const userId = user?.id || "00000000-0000-0000-0000-000000000001"
-
-        // PRODUCTION: Require authenticated user
-        if (!user) {
-          throw new Error("User must be authenticated")
-        }
-        const userId = user.id
-        setUserId(userId)
-
-        const res = await fetch(`/api/metrics?userId=${userId}`)
-        const data = await res.json()
-        if (data.metrics) {
-          setMetrics(data.metrics)
-        }
-      } catch (error) {
-        console.error("Failed to fetch metrics:", error)
-      } finally {
-        setLoading(false)
+  const loadMetrics = async (uid: string) => {
+    try {
+      setLoading(true)
+      const res = await fetch(`/api/metrics?userId=${uid}`)
+      const data = await res.json()
+      if (data.metrics) {
+        setMetrics(data.metrics)
       }
+    } catch (error) {
+      console.error("Failed to fetch metrics:", error)
+    } finally {
+      setLoading(false)
     }
+  }
 
-    fetchMetrics()
+  useEffect(() => {
+    getClientSession().then((session) => {
+      setUserId(session.userId)
+      loadMetrics(session.userId)
+    })
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-          <p className="mt-4 text-gray-600">Loading metrics...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!metrics) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                title="Back to home"
-              >
-                <svg
-                  className="w-6 h-6 text-gray-700"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </Link>
-              <h1 className="text-3xl font-bold text-gray-900">Metrics</h1>
-            </div>
-          </div>
-        </header>
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <p className="text-gray-600">No data available</p>
-        </main>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Back to home"
-            >
-              <svg
-                className="w-6 h-6 text-gray-700"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </Link>
+    <div className="min-h-screen bg-gray-50 pb-16">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Performance Metrics</h1>
-              <p className="mt-2 text-gray-600">Track your job search progress</p>
+              <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                Search Analytics & Funnel
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Detailed performance analytics, conversion rates, and volume metrics
+              </p>
             </div>
+            <Link
+              href="/dashboard/pipeline"
+              className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-white text-gray-700 border border-gray-300 shadow-sm hover:bg-gray-50 transition-colors"
+            >
+              View Pipeline Board →
+            </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <MetricCard title="Total Applications" value={metrics.totalApplications} color="blue" />
-          <MetricCard title="Interview Rate" value={`${metrics.interviewRate.toFixed(1)}%`} color="green" />
-          <MetricCard title="Offer Rate" value={`${metrics.offerRate.toFixed(1)}%`} color="purple" />
-          <MetricCard title="Rejection Rate" value={`${metrics.rejectionRate.toFixed(1)}%`} color="red" />
-        </div>
-
-        {/* Additional Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <MetricCard
-            title="Applications This Week"
-            value={metrics.applicationsThisWeek}
-            color="indigo"
-          />
-          <MetricCard
-            title="Avg Days to Interview"
-            value={metrics.averageDaysToInterview}
-            color="yellow"
-          />
-          <MetricCard
-            title="Learning Progress"
-            value={`${metrics.learningProgress}%`}
-            color="cyan"
-          />
-        </div>
-
-        {/* Top Companies */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Top Companies</h2>
-          <div className="space-y-3">
-            {metrics.topCompanies.length > 0 ? (
-              metrics.topCompanies.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center">
-                  <span className="text-gray-700">{item.company}</span>
-                  <span className="text-sm font-medium text-indigo-600">{item.count} applications</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-600 italic">No applications yet</p>
-            )}
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {loading ? (
+          <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-100">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+            <p className="mt-3 text-sm text-gray-500 font-medium">Aggregating search metrics...</p>
           </div>
-        </div>
-
-        {/* Top Rejection Reasons */}
-        {metrics.topRejectionReasons.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">common Rejection Reasons</h2>
-            <div className="space-y-3">
-              {metrics.topRejectionReasons.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-center">
-                  <span className="text-gray-700">{item.reason}</span>
-                  <span className="text-sm font-medium text-red-600">{item.count} rejections</span>
+        ) : !metrics ? (
+          <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-300 p-12 text-center">
+            <span className="text-4xl">📊</span>
+            <h3 className="mt-3 text-base font-semibold text-gray-900">No metrics data available</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Start by submitting applications to see your conversion analytics.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* Top Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xs">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Total Applications
+                </span>
+                <div className="text-3xl font-extrabold text-gray-900 mt-2">
+                  {metrics.totalApplications}
                 </div>
-              ))}
+                <p className="text-xs text-gray-500 mt-1">All recorded job entries</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xs">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Velocity
+                </span>
+                <div className="text-3xl font-extrabold text-indigo-600 mt-2">
+                  {metrics.applicationsThisWeek}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Submitted in last 7 days</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xs">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Interview Rate
+                </span>
+                <div className="text-3xl font-extrabold text-emerald-600 mt-2">
+                  {metrics.interviewRate}%
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Applications reaching interview</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-xs">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Offer Rate
+                </span>
+                <div className="text-3xl font-extrabold text-purple-600 mt-2">
+                  {metrics.offerRate}%
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Conversion to job offers</p>
+              </div>
             </div>
-          </div>
-        )}
 
-        {/* Upcoming Interviews */}
-        {metrics.upcomingInterviews.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Interviews</h2>
-            <div className="space-y-3">
-              {metrics.upcomingInterviews.map((app) => (
-                <div key={app.id} className="p-3 bg-blue-50 rounded border border-blue-200">
-                  <h3 className="font-medium text-gray-900">{app.job_title}</h3>
-                  <p className="text-sm text-gray-600">{app.company_name}</p>
-                  <p className="text-xs text-gray-500 mt-1">Days in stage: {app.days_in_stage}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+            {/* Funnel Progress Breakdown */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h2 className="text-base font-bold text-gray-900 mb-6">Application Conversion Funnel</h2>
 
-        {/* Recent Offers */}
-        {metrics.recentOffers.length > 0 && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Recent Offers 🎉</h2>
-            <div className="space-y-3">
-              {metrics.recentOffers.map((app) => (
-                <div key={app.id} className="p-3 bg-green-50 rounded border border-green-200">
-                  <h3 className="font-medium text-gray-900">{app.job_title}</h3>
-                  <p className="text-sm text-gray-600">{app.company_name}</p>
-                  {app.salary_min && app.salary_max && (
-                    <p className="text-sm text-green-600 font-medium mt-1">
-                      ${app.salary_min.toLocaleString()} - ${app.salary_max.toLocaleString()}
-                    </p>
-                  )}
+              <div className="space-y-5">
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-gray-700">1. Applications Submitted</span>
+                    <span className="text-gray-900">{metrics.totalApplications} (100%)</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div className="bg-indigo-600 h-3 rounded-full w-full"></div>
+                  </div>
                 </div>
-              ))}
+
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-gray-700">2. Interviews Secured</span>
+                    <span className="text-emerald-700">{metrics.interviewRate}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-emerald-500 h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.max(5, metrics.interviewRate))}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-gray-700">3. Offers Received</span>
+                    <span className="text-purple-700">{metrics.offerRate}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-purple-500 h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.max(3, metrics.offerRate))}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
+                    <span className="text-gray-700">4. Rejection Rate</span>
+                    <span className="text-red-700">{metrics.rejectionRate}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-3">
+                    <div
+                      className="bg-red-400 h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, Math.max(2, metrics.rejectionRate))}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
       </main>
-    </div>
-  )
-}
-
-interface MetricCardProps {
-  title: string
-  value: string | number
-  color: "blue" | "green" | "purple" | "red" | "indigo" | "yellow" | "cyan"
-}
-
-function MetricCard({ title, value, color }: MetricCardProps) {
-  const colorClasses = {
-    blue: "bg-blue-50 text-blue-600 border-blue-200",
-    green: "bg-green-50 text-green-600 border-green-200",
-    purple: "bg-purple-50 text-purple-600 border-purple-200",
-    red: "bg-red-50 text-red-600 border-red-200",
-    indigo: "bg-indigo-50 text-indigo-600 border-indigo-200",
-    yellow: "bg-yellow-50 text-yellow-600 border-yellow-200",
-    cyan: "bg-cyan-50 text-cyan-600 border-cyan-200",
-  }
-
-  return (
-    <div className={`${colorClasses[color]} border rounded-lg p-6`}>
-      <p className="text-sm font-medium text-gray-600">{title}</p>
-      <p className="mt-2 text-3xl font-bold">{value}</p>
     </div>
   )
 }
