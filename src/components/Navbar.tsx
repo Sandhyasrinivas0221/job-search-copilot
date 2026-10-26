@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getClientSession, ClientUserSession } from "@/lib/client-auth"
+import { getClientSession, signOutUser, ClientUserSession } from "@/lib/client-auth"
 
 export function Navbar() {
   const pathname = usePathname()
@@ -91,17 +91,25 @@ export function Navbar() {
               <div className="flex items-center gap-2">
                 {session.isDemo ? (
                   <span
-                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
                     title={`Active User ID: ${session.userId}`}
                   >
                     Demo Workspace
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
                     {session.user?.email || "Connected"}
                   </span>
                 )}
+
+                <button
+                  onClick={() => signOutUser()}
+                  className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
+                  title="Sign out of session"
+                >
+                  Sign Out
+                </button>
               </div>
             )}
           </div>

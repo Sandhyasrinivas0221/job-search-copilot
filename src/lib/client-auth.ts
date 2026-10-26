@@ -45,3 +45,14 @@ export async function getClientSession(): Promise<ClientUserSession> {
     }
   }
 }
+
+export async function signOutUser(): Promise<void> {
+  try {
+    const supabase = getSupabaseBrowserClient()
+    await supabase.auth.signOut()
+    window.location.href = "/"
+  } catch (err) {
+    console.error("Sign out failed:", err)
+    window.location.href = "/"
+  }
+}
