@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { MailAgent } from "@/agents/mail-agent"
 import { fetchGmailEmails, getValidGmailAccessToken } from "@/lib/gmail-fetcher"
+import { getUser } from "@/lib/db"
 
 export const runtime = "nodejs"
 
@@ -48,7 +49,21 @@ export async function GET(request: NextRequest) {
         const accessToken = await getValidGmailAccessToken(cred.user_id)
         if (!accessToken) continue
 
-        const emails = await fetchGmailEmails(accessToken, 25)
+        // Load user's career context from resume
+        const user = await getUser(cred.user_id)
+        let userContext: any = undefined
+        if (user?.bio) {
+          try {
+            const bio = JSON.parse(user.bio)
+            userContext = {
+              targetRole: bio.target_role,
+              industryField: bio.industry_field,
+              searchKeywords: bio.search_keywords,
+            }
+          } catch {}
+        }
+
+        const emails = await fetchGmailEmails(accessToken, 25, userContext)
         if (emails.length === 0) continue
 
         const agent = new MailAgent(cred.user_id)

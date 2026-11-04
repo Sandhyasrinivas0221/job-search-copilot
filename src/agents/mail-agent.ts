@@ -11,13 +11,37 @@
  */
 
 import { EmailEventType, EmailParsed, ApplicationStatus, Application } from "@/types"
-import { createApplication, updateApplication, getApplications, createStatusHistory } from "@/lib/db"
+import { createApplication, updateApplication, getApplications, createStatusHistory, getUser } from "@/lib/db"
 
 export class MailAgent {
   private userId: string
+  private targetRole: string | null = null
+  private industryField: string | null = null
+  private searchKeywords: string[] = []
 
   constructor(userId: string) {
     this.userId = userId
+  }
+
+  /**
+   * Load candidate's career context from their profile/resume
+   */
+  async loadUserContext(): Promise<void> {
+    try {
+      const user = await getUser(this.userId)
+      if (user?.bio) {
+        try {
+          const parsed = JSON.parse(user.bio)
+          this.targetRole = parsed.target_role || null
+          this.industryField = parsed.industry_field || null
+          this.searchKeywords = Array.isArray(parsed.search_keywords) ? parsed.search_keywords : []
+        } catch {
+          // unparsed text bio
+        }
+      }
+    } catch (err) {
+      console.warn(`[MailAgent] Could not load user context for ${this.userId}:`, err)
+    }
   }
 
   /**
@@ -25,6 +49,7 @@ export class MailAgent {
    */
   async processInboxEmails(emails: EmailParsed[]): Promise<Application[]> {
     console.log(`[MailAgent] Processing ${emails.length} emails for user ${this.userId}`)
+    await this.loadUserContext()
     const processedApplications: Application[] = []
 
     for (const email of emails) {
@@ -63,7 +88,7 @@ export class MailAgent {
     }
 
     const company = extracted.company || "Direct Employer"
-    const role = extracted.role || "Job Applicant"
+    const role = extracted.role || this.targetRole || "Job Applicant"
     const location = extracted.location || null
 
     // Look for existing application in user's pipeline
@@ -263,6 +288,19 @@ export class MailAgent {
         const senderName = fromNameMatch[1].trim()
         if (!/indeed|reed|totaljobs|linkedin|do not reply|no-reply/i.test(senderName)) {
           company = senderName
+        }
+      }
+    }
+
+    // Pattern G: Candidate's target role or search keyword match in text if role is still unresolved
+    if (!role && this.targetRole) {
+      const lowerText = `${subject} ${body}`.toLowerCase()
+      if (lowerText.includes(this.targetRole.toLowerCase())) {
+        role = this.targetRole
+      } else if (this.searchKeywords.length > 0) {
+        const foundKw = this.searchKeywords.find((kw) => lowerText.includes(kw.toLowerCase()))
+        if (foundKw) {
+          role = foundKw.charAt(0).toUpperCase() + foundKw.slice(1)
         }
       }
     }

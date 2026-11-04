@@ -101,20 +101,33 @@ const INDUSTRY_RULES = [
     defaultRole: "Software Engineer",
     skills: [
       "Full Stack Development",
-      "API Design & Integration",
-      "Database Management (SQL/NoSQL)",
-      "Cloud & DevOps Deployment",
-      "Code Review & Testing",
+      "TypeScript & React",
+      "Node.js & Next.js",
+      "SQL & Database Design",
+      "System Architecture",
+      "Git & CI/CD",
+      "Cloud Infrastructure",
     ],
   },
 ]
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData()
-    const userId = formData.get("userId") as string
-    const file = formData.get("file") as File | null
-    const textInput = formData.get("text") as string | null
+    const contentType = request.headers.get("content-type") || ""
+    let userId = ""
+    let file: File | null = null
+    let textInput = ""
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData()
+      userId = (formData.get("userId") as string) || ""
+      file = (formData.get("file") as File) || null
+      textInput = (formData.get("text") as string) || ""
+    } else {
+      const body = await request.json()
+      userId = body.userId || ""
+      textInput = body.text || ""
+    }
 
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 })
@@ -163,7 +176,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[resume-upload] Parsing resume text (${resumeText.length} characters)...`)
 
-    // Extract Candidate Name (first line or header)
+    // Extract Candidate Name
     const lines = resumeText
       .split("\n")
       .map((l) => l.trim())
@@ -172,7 +185,7 @@ export async function POST(request: NextRequest) {
 
     // Detect Industry Field & Matching Skills
     const lowerText = resumeText.toLowerCase()
-    let bestMatch = INDUSTRY_RULES[0] // Default to Healthcare & Social Care
+    let bestMatch = INDUSTRY_RULES[0]
     let highestScore = 0
 
     for (const ind of INDUSTRY_RULES) {
@@ -192,7 +205,6 @@ export async function POST(request: NextRequest) {
     let detectedRole = bestMatch.defaultRole
     for (const kw of bestMatch.keywords.slice(0, 8)) {
       if (lowerText.includes(kw)) {
-        // Capitalize words
         detectedRole = kw
           .split(" ")
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -201,12 +213,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Detect Location (UK, Scotland, Cities)
+    // Detect Location
     let detectedLocation = "United Kingdom"
     if (/scotland|edinburgh|glasgow|fife|dundee|aberdeen/i.test(lowerText)) {
       detectedLocation = "Scotland, United Kingdom"
     } else if (/london|manchester|birmingham|leeds|bristol/i.test(lowerText)) {
       detectedLocation = "United Kingdom"
+    } else if (/remote/i.test(lowerText)) {
+      detectedLocation = "Remote"
     }
 
     // Extract skills present in text + matched default skills
@@ -221,38 +235,49 @@ export async function POST(request: NextRequest) {
 
     const finalSkills = Array.from(extractedSkills).slice(0, 12)
 
-    // Save profile to Supabase
+    // Keywords for Mail Agent and Job Market Agent
+    const searchKeywords = Array.from(
+      new Set([detectedRole.toLowerCase(), ...bestMatch.keywords.slice(0, 6)])
+    )
+
+    // Save profile to Supabase with upsert
     const bioPayload = JSON.stringify({
       target_role: detectedRole,
       target_location: detectedLocation,
       industry_field: bestMatch.field,
       institution_name: null,
+      search_keywords: searchKeywords,
       resume_summary: resumeText.substring(0, 3000),
     })
 
     await supabaseAdmin
       .from("users")
-      .update({
-        full_name: possibleName,
-        bio: bioPayload,
-        skills: finalSkills,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId)
+      .upsert(
+        {
+          id: userId,
+          email: `candidate-${userId.substring(0, 8)}@jobcopilot.local`,
+          full_name: possibleName,
+          bio: bioPayload,
+          skills: finalSkills,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      )
 
     console.log(
-      `[resume-upload] Successfully parsed resume: Role: "${detectedRole}", Field: "${bestMatch.field}", Location: "${detectedLocation}", Skills: ${finalSkills.length}`
+      `[resume-upload] Successfully parsed resume for ${userId}: Role: "${detectedRole}", Field: "${bestMatch.field}", Location: "${detectedLocation}", Skills: ${finalSkills.length}, Keywords: ${searchKeywords.length}`
     )
 
     return NextResponse.json({
       success: true,
-      message: "Resume parsed and profile updated successfully!",
+      message: "Resume parsed and career profile updated successfully!",
       extracted: {
         candidate_name: possibleName,
         target_role: detectedRole,
         industry_field: bestMatch.field,
         target_location: detectedLocation,
         skills: finalSkills,
+        search_keywords: searchKeywords,
       },
     })
   } catch (error) {

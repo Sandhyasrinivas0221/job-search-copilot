@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getValidGmailAccessToken, fetchGmailEmails } from "@/lib/gmail-fetcher"
 import { MailAgent } from "@/agents/mail-agent"
-import { getApplications } from "@/lib/db"
+import { getApplications, getUser } from "@/lib/db"
 
 /**
  * POST /api/agents/sync-inbox
@@ -29,8 +29,22 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // 2. Fetch relevant emails from Gmail
-    const emails = await fetchGmailEmails(accessToken, 35)
+    // Load candidate's parsed resume and career profile to guide targeted email search
+    const user = await getUser(userId)
+    let userContext: any = undefined
+    if (user?.bio) {
+      try {
+        const bio = JSON.parse(user.bio)
+        userContext = {
+          targetRole: bio.target_role,
+          industryField: bio.industry_field,
+          searchKeywords: bio.search_keywords,
+        }
+      } catch {}
+    }
+
+    // 2. Fetch relevant emails from Gmail with resume intelligence
+    const emails = await fetchGmailEmails(accessToken, 35, userContext)
 
     if (emails.length === 0) {
       const currentApps = await getApplications(userId)

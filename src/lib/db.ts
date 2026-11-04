@@ -59,6 +59,7 @@ export async function getOrCreateUser(
       id: userId,
       email: defaultEmail,
       full_name: full_name || "Job Candidate",
+      profile_picture_url: null,
       skills: [],
       bio: null,
       created_at: new Date().toISOString(),

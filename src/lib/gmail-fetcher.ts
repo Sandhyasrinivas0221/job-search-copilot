@@ -132,20 +132,39 @@ function cleanHtml(html: string): string {
     .trim()
 }
 
+export interface UserCareerContext {
+  targetRole?: string
+  industryField?: string
+  searchKeywords?: string[]
+}
+
 /**
  * Fetch emails relevant to job applications, interviews, and updates
+ * Adapts search query dynamically based on the user's uploaded resume and career field
  */
 export async function fetchGmailEmails(
   gmailAccessToken: string,
-  limit: number = 25
+  limit: number = 25,
+  context?: UserCareerContext
 ): Promise<EmailParsed[]> {
   try {
-    console.log("[gmail-fetcher] Searching emails for job applications and updates...")
+    const baseBoardQuery =
+      "from:indeed.com OR from:indeedapply@indeed.com OR from:reed.co.uk OR from:totaljobs.com OR from:linkedin.com OR from:glassdoor.com OR from:jobs.nhs.uk OR from:greenhouse.io OR from:lever.co OR from:myworkday.com OR subject:application OR subject:applied OR subject:interview OR subject:offer OR subject:candidate OR subject:assessment"
 
-    // Broad query targeting all major job boards and application keywords
-    const query = encodeURIComponent(
-      "from:indeed.com OR from:indeedapply@indeed.com OR from:reed.co.uk OR from:totaljobs.com OR from:linkedin.com OR from:glassdoor.com OR from:nhs.jobs OR subject:application OR subject:applied OR subject:interview OR subject:offer OR subject:candidate OR subject:assessment"
-    )
+    let activeQuery = baseBoardQuery
+
+    // Use resume-informed keywords to pinpoint applications in candidate's specific field
+    if (context?.searchKeywords && context.searchKeywords.length > 0) {
+      const topKeywords = context.searchKeywords.slice(0, 5)
+      const keywordFilter = topKeywords.map((k) => `"${k}"`).join(" OR ")
+      activeQuery = `(${baseBoardQuery}) AND (${keywordFilter} OR subject:application OR subject:applied)`
+      console.log(`[gmail-fetcher] Targeting resume field keywords: [${topKeywords.join(", ")}]`)
+    } else if (context?.targetRole) {
+      activeQuery = `(${baseBoardQuery}) AND ("${context.targetRole}" OR subject:application OR subject:applied)`
+      console.log(`[gmail-fetcher] Targeting role: "${context.targetRole}"`)
+    }
+
+    const query = encodeURIComponent(activeQuery)
 
     const listResponse = await fetch(
       `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${limit}&q=${query}`,
@@ -164,10 +183,28 @@ export async function fetchGmailEmails(
     const listData = await listResponse.json()
     let messages = listData.messages || []
 
-    // If no specific job board messages found, fallback to recent messages
+    // If targeted query yielded 0 messages, fall back to general job board search
+    if (messages.length === 0 && activeQuery !== baseBoardQuery) {
+      console.log("[gmail-fetcher] Targeted search empty, expanding to broader job board query...")
+      const fallbackQuery = encodeURIComponent(baseBoardQuery)
+      const broaderRes = await fetch(
+        `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${limit}&q=${fallbackQuery}`,
+        {
+          headers: {
+            Authorization: `Bearer ${gmailAccessToken}`,
+          },
+        }
+      )
+      if (broaderRes.ok) {
+        const broaderData = await broaderRes.json()
+        messages = broaderData.messages || []
+      }
+    }
+
+    // If still no job board messages found, fallback to recent messages
     if (messages.length === 0) {
       console.log("[gmail-fetcher] No filtered job emails found, fetching recent messages...")
-      const fallbackRes = await fetch(
+      const recentRes = await fetch(
         `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=15`,
         {
           headers: {
@@ -175,9 +212,9 @@ export async function fetchGmailEmails(
           },
         }
       )
-      if (fallbackRes.ok) {
-        const fallbackData = await fallbackRes.json()
-        messages = fallbackData.messages || []
+      if (recentRes.ok) {
+        const recentData = await recentRes.json()
+        messages = recentData.messages || []
       }
     }
 
