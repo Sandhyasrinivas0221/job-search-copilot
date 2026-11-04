@@ -1,95 +1,73 @@
 /**
- * Manual Trigger Endpoint: Search for Jobs
+ * Multi-User Job Market Search Endpoint
  *
- * Allows manual triggering of job market search for a specific user
- * TEST DATA: Useful for testing without waiting for scheduled cron jobs (COMMENTED OUT FOR PRODUCTION)
- *
- * Endpoint: POST /api/cron/trigger-jobs?userId=<id>
- * (Note: This agent is DISABLED in production - no free job API available)
- *
- * Query Parameters:
- * - userId (required): User ID to search jobs for
- *
- * Returns:
- * - Job listings found, suggestions created, and top matches
+ * Runs for a specific user (?userId=<id>) or all registered users (scheduled cron)
+ * Route: POST /api/cron/trigger-jobs
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { JobMarketAgent } from "@/agents/job-market-agent"
-import { getUser } from "@/lib/db"
+import { getUser, getOrCreateUser } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId parameter" },
-        { status: 400 }
-      )
+    if (userId) {
+      console.log(`[trigger/jobs] Running job market search for single user: ${userId}`)
+      const user = await getOrCreateUser(userId)
+      const agent = new JobMarketAgent(userId, user)
+      const suggestions = await agent.findJobsForUser()
+
+      const { data: createdSuggestions } = await supabaseAdmin
+        .from("job_suggestions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(15)
+
+      return NextResponse.json({
+        success: true,
+        message: "Job search completed successfully",
+        jobsFound: suggestions.length,
+        suggestionsCreated: createdSuggestions?.length || 0,
+        suggestions: createdSuggestions || [],
+      })
     }
 
-    console.log(`[trigger/jobs] Starting job market search for user ${userId}`)
-
-    // Get user to pass to agent
-    const user = await getUser(userId)
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      )
-    }
-
-    // Instantiate and run the Job Market Agent
-    const agent = new JobMarketAgent(userId, user)
-    const suggestions = await agent.findJobsForUser()
-
-    console.log(
-      `[trigger/jobs] Found ${suggestions.length} job suggestions for user ${userId}`
-    )
-
-    // Get the created suggestions to return details
-    const { data: createdSuggestions, error: suggestionsError } = await supabaseAdmin
-      .from("job_suggestions")
+    // Cron execution across all active users
+    console.log("[trigger/jobs] Running scheduled job market search for all users...")
+    const { data: users, error: usersError } = await supabaseAdmin
+      .from("users")
       .select("*")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(15)
+      .limit(100)
 
-    if (suggestionsError) {
-      console.error(`[trigger/jobs] Error fetching suggestions:`, suggestionsError)
+    if (usersError || !users || users.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "No users found for job search",
+        processed: 0,
+      })
     }
 
-    // Sort by match score to show top matches
-    const topMatches = (createdSuggestions || [])
-      .sort((a: any, b: any) => (b.match_score || 0) - (a.match_score || 0))
-      .slice(0, 5)
+    let totalDiscovered = 0
+    for (const u of users) {
+      try {
+        const agent = new JobMarketAgent(u.id, u)
+        const suggestions = await agent.findJobsForUser()
+        totalDiscovered += suggestions.length
+      } catch (userErr) {
+        console.error(`[trigger/jobs] Error searching jobs for user ${u.id}:`, userErr)
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Job search completed successfully",
-      jobsFound: suggestions.length,
-      suggestionsCreated: createdSuggestions?.length || 0,
-      topMatches: topMatches.map((job: any) => ({
-        id: job.id,
-        jobTitle: job.job_title,
-        companyName: job.company_name,
-        matchScore: job.match_score,
-        easyApply: job.easy_apply,
-        location: job.location,
-        salaryMin: job.salary_min,
-        salaryMax: job.salary_max,
-        sourceSite: job.source_site,
-      })),
-      summary: {
-        easyApplyCount: (createdSuggestions || []).filter((s: any) => s.easy_apply).length,
-        avgMatchScore: createdSuggestions && createdSuggestions.length > 0
-          ? (createdSuggestions.reduce((sum: number, s: any) => sum + (s.match_score || 0), 0) / createdSuggestions.length).toFixed(1)
-          : 0,
-      },
+      message: `Job search completed for ${users.length} users`,
+      totalDiscovered,
+      usersProcessed: users.length,
     })
   } catch (error) {
     console.error("[trigger/jobs] Error searching jobs:", error)

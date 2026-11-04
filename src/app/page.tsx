@@ -15,6 +15,7 @@ export default function Home() {
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false)
   const [syncingInbox, setSyncingInbox] = useState(false)
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null)
+  const [showPresetPicker, setShowPresetPicker] = useState(false)
 
   const loadData = async (uid: string) => {
     try {
@@ -31,9 +32,42 @@ export default function Home() {
       const profileData = await profileRes.json()
       if (profileData.profile) {
         setProfile(profileData.profile)
+        // If brand new user with unconfigured profile, show preset picker
+        if (!profileData.profile.is_configured && !profileData.profile.target_role) {
+          setShowPresetPicker(true)
+        }
       }
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSelectPreset = async (
+    field: string,
+    role: string,
+    skills: string[],
+    location: string
+  ) => {
+    if (!userSession?.userId) return
+    try {
+      setLoading(true)
+      await fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userSession.userId,
+          industry_field: field,
+          target_role: role,
+          target_location: location,
+          skills,
+        }),
+      })
+      await loadData(userSession.userId)
+      setShowPresetPicker(false)
+    } catch (err) {
+      console.error("Failed to select preset:", err)
     } finally {
       setLoading(false)
     }
@@ -116,16 +150,242 @@ export default function Home() {
           </div>
         ) : (
           <>
+            {/* Profession Preset Onboarding Picker for Multi-Industry Users */}
+            {showPresetPicker && (
+              <div className="mb-8 p-6 bg-white rounded-2xl border-2 border-indigo-200 shadow-md">
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <div>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">
+                      Multi-Industry Setup
+                    </span>
+                    <h2 className="text-xl font-extrabold text-gray-900 mt-1">
+                      Choose Your Career Field
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      Job Search Copilot supports multiple concurrent users across any industry. Select your profession or upload a CV.
+                    </p>
+                  </div>
+                  {profile?.target_role && (
+                    <button
+                      onClick={() => setShowPresetPicker(false)}
+                      className="text-xs font-semibold text-gray-400 hover:text-gray-600 px-3 py-1.5 rounded-lg border border-gray-200"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-2">
+                  <button
+                    onClick={() =>
+                      handleSelectPreset(
+                        "Healthcare & Social Care",
+                        "Care Worker",
+                        [
+                          "Dementia Care",
+                          "Safeguarding Adults",
+                          "Medication Administration",
+                          "First Aid",
+                          "Moving and Handling",
+                          "Infection Control",
+                          "Person-Centred Care",
+                        ],
+                        "United Kingdom"
+                      )
+                    }
+                    className="p-4 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xl">🩺</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        Care & Support
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-emerald-700">
+                      Healthcare & Social Care
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Care Worker, Senior Care Assistant, Support Worker, Domiciliary Carer
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleSelectPreset(
+                        "Nursing & Clinical Healthcare",
+                        "Registered Nurse",
+                        [
+                          "Clinical Patient Care",
+                          "NMC Code of Conduct",
+                          "Medication Administration",
+                          "Wound Care",
+                          "Vital Signs (NEWS2)",
+                        ],
+                        "United Kingdom"
+                      )
+                    }
+                    className="p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/40 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xl">🏥</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">
+                        Clinical & NHS
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-blue-700">
+                      Nursing & Clinical Care
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Registered Nurse (RGN/RMN), Staff Nurse, Ward Nurse, Clinical Lead
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleSelectPreset(
+                        "Technology & Software Engineering",
+                        "Software Engineer",
+                        [
+                          "Full Stack Development",
+                          "TypeScript & React",
+                          "Node.js & Next.js",
+                          "SQL & Databases",
+                          "System Architecture",
+                        ],
+                        "Remote / Hybrid"
+                      )
+                    }
+                    className="p-4 rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/40 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xl">💻</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
+                        Engineering
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-indigo-700">
+                      Technology & Software
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Full Stack Developer, Frontend, Backend, Cloud & DevOps Engineer
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleSelectPreset(
+                        "Education & Teaching",
+                        "Teaching Assistant",
+                        [
+                          "Classroom Management",
+                          "SEN Support",
+                          "Safeguarding in Schools",
+                          "Lesson Delivery",
+                        ],
+                        "United Kingdom"
+                      )
+                    }
+                    className="p-4 rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50/40 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xl">🎓</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">
+                        Education
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-amber-700">
+                      Education & Teaching
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Teaching Assistant, SEN Specialist, Primary / Secondary Teacher
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleSelectPreset(
+                        "Administration & Customer Service",
+                        "Administrative Assistant",
+                        [
+                          "Office Administration",
+                          "Customer Communication",
+                          "Scheduling",
+                          "Excel & Docs",
+                        ],
+                        "United Kingdom"
+                      )
+                    }
+                    className="p-4 rounded-xl border border-gray-200 hover:border-purple-500 hover:bg-purple-50/40 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xl">📁</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-800">
+                        Administration
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-purple-700">
+                      Administration & Support
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Office Coordinator, Receptionist, Customer Service Representative
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() =>
+                      handleSelectPreset(
+                        "Logistics, Warehousing & Driving",
+                        "Delivery Driver / Warehouse Operative",
+                        [
+                          "Route Navigation",
+                          "Health & Safety",
+                          "Inventory Picking",
+                          "Manual Handling",
+                        ],
+                        "United Kingdom"
+                      )
+                    }
+                    className="p-4 rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/40 text-left transition-all group"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xl">🚚</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-800">
+                        Logistics
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 text-sm group-hover:text-orange-700">
+                      Logistics & Warehousing
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1">
+                      Multi-Drop Driver, Warehouse Operative, Stock Controller
+                    </p>
+                  </button>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">
+                    Have an existing CV or resume in any other sector?
+                  </span>
+                  <button
+                    onClick={() => setIsResumeModalOpen(true)}
+                    className="px-4 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors"
+                  >
+                    📄 Upload CV / Resume to Auto-Detect
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Candidate & Institution Profile Banner */}
             <div className="mb-8 p-6 bg-white rounded-2xl border border-indigo-100 shadow-sm">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
                       Target Role
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                      {profile?.industry_field || "Healthcare & Social Care"}
+                      {profile?.industry_field || "Professional"}
                     </span>
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                       📍 {profile?.target_location || "United Kingdom"}
@@ -133,7 +393,7 @@ export default function Home() {
                   </div>
 
                   <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                    <span>{profile?.target_role || "Care Worker"}</span>
+                    <span>{profile?.target_role || "Select Profession"}</span>
                     {profile?.full_name && (
                       <span className="text-sm font-normal text-gray-500">
                         • {profile.full_name}
@@ -144,14 +404,18 @@ export default function Home() {
                   {/* Skills tags */}
                   <div className="mt-3 flex flex-wrap gap-1.5 items-center">
                     <span className="text-xs font-semibold text-gray-400 mr-1">Skills:</span>
-                    {(profile?.skills || []).slice(0, 8).map((sk) => (
-                      <span
-                        key={sk}
-                        className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700"
-                      >
-                        {sk}
-                      </span>
-                    ))}
+                    {(profile?.skills || []).length === 0 ? (
+                      <span className="text-xs text-gray-400 italic">No skills listed yet</span>
+                    ) : (
+                      (profile?.skills || []).slice(0, 8).map((sk) => (
+                        <span
+                          key={sk}
+                          className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700"
+                        >
+                          {sk}
+                        </span>
+                      ))
+                    )}
                     {(profile?.skills || []).length > 8 && (
                       <span className="text-xs text-gray-400 font-medium">
                         +{profile!.skills.length - 8} more
@@ -162,10 +426,17 @@ export default function Home() {
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
+                    onClick={() => setShowPresetPicker(!showPresetPicker)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                  >
+                    <span>🔄</span> Switch Profession
+                  </button>
+
+                  <button
                     onClick={() => setIsResumeModalOpen(true)}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs transition-colors"
                   >
-                    <span>📄</span> Upload Resume / CV
+                    <span>📄</span> Upload CV
                   </button>
 
                   <button
@@ -174,7 +445,7 @@ export default function Home() {
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
                   >
                     <span className={syncingInbox ? "animate-spin" : ""}>🔄</span>
-                    {syncingInbox ? "Syncing..." : "Sync Indeed Applications"}
+                    {syncingInbox ? "Syncing..." : "Sync Applications"}
                   </button>
 
                   <Link

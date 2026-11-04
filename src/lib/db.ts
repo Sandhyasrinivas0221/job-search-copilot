@@ -30,6 +30,45 @@ export async function getUser(userId: string): Promise<User | null> {
   return data
 }
 
+export async function getOrCreateUser(
+  userId: string,
+  email?: string,
+  full_name?: string
+): Promise<User> {
+  const existing = await getUser(userId)
+  if (existing) return existing
+
+  const defaultEmail = email || `user-${userId.substring(0, 8)}@jobcopilot.local`
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .upsert(
+      {
+        id: userId,
+        email: defaultEmail,
+        full_name: full_name || "Job Candidate",
+        skills: [],
+        bio: null,
+      },
+      { onConflict: "id" }
+    )
+    .select()
+    .single()
+
+  if (error || !data) {
+    return {
+      id: userId,
+      email: defaultEmail,
+      full_name: full_name || "Job Candidate",
+      skills: [],
+      bio: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+  }
+
+  return data
+}
+
 export async function createUser(user: Omit<User, "created_at" | "updated_at">): Promise<User | null> {
   const { data, error } = await supabaseAdmin
     .from("users")

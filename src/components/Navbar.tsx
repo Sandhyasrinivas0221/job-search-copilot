@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { getClientSession, signOutUser, ClientUserSession } from "@/lib/client-auth"
+import { AuthModal } from "@/components/AuthModal"
 
 export function Navbar() {
   const pathname = usePathname()
@@ -11,6 +12,7 @@ export function Navbar() {
   const [connectedGmail, setConnectedGmail] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
 
   useEffect(() => {
     getClientSession().then((s) => {
@@ -135,31 +137,46 @@ export function Navbar() {
             {session && (
               <div className="flex items-center gap-2">
                 {session.isDemo ? (
-                  <span
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
-                    title={`Active User ID: ${session.userId}`}
-                  >
-                    Demo Workspace
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+                      title={`Private Guest Session: ${session.userId}`}
+                    >
+                      Guest Workspace
+                    </span>
+                    <button
+                      onClick={() => setIsAuthModalOpen(true)}
+                      className="px-3 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-200"
+                    >
+                      Sign In / Register
+                    </button>
+                  </div>
                 ) : (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
-                    {session.user?.email || "Connected"}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
+                      {session.user?.email || "Account"}
+                    </span>
+                    <button
+                      onClick={() => signOutUser()}
+                      className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
+                      title="Sign out of session"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
                 )}
-
-                <button
-                  onClick={() => signOutUser()}
-                  className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
-                  title="Sign out of session"
-                >
-                  Sign Out
-                </button>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUserId={session?.userId}
+      />
     </nav>
   )
 }

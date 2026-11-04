@@ -4,9 +4,9 @@
  * Sealed Abilities: Cannot apply to jobs, cannot change statuses
  *
  * Responsibilities:
- * - Detect user's profession (Healthcare & Social Care, Nursing, Business, Tech, Education, etc.)
- * - Provide accredited, free learning resources and courses for their exact profession
- * - Produce realistic interview preparation packs and model answers tailored to their industry
+ * - Detects user's profession (Healthcare & Social Care, Nursing, Tech, Education, Admin, Logistics, etc.)
+ * - Provides accredited, free learning resources and curriculum for their exact profession
+ * - Produces realistic interview preparation packs and model answers tailored to their industry
  */
 
 import { LearningPlanItem, InterviewPrepPack, Application, ApplicationStatus, User } from "../types"
@@ -36,16 +36,51 @@ export class LearningPlannerAgent {
       }
     }
 
-    const targetRole = parsedBio.target_role || "Care Worker"
-    const industryField = parsedBio.industry_field || "Healthcare & Social Care"
-    const isCareOrHealth =
-      /care|nurse|health|support worker|carer|social care/i.test(targetRole) ||
-      /healthcare/i.test(industryField)
+    const targetRole = parsedBio.target_role || "Professional"
+    const industryField = parsedBio.industry_field || "General Professional"
 
     const planItems: LearningPlanItem[] = []
 
-    if (isCareOrHealth) {
+    const fieldLower = industryField.toLowerCase()
+    const roleLower = targetRole.toLowerCase()
+
+    if (fieldLower.includes("nursing") || roleLower.includes("nurse")) {
+      planItems.push(...(await this.generateNursingPlan()))
+    } else if (
+      fieldLower.includes("healthcare") ||
+      fieldLower.includes("care") ||
+      roleLower.includes("care") ||
+      roleLower.includes("carer") ||
+      roleLower.includes("support worker")
+    ) {
       planItems.push(...(await this.generateHealthAndCarePlan(targetRole)))
+    } else if (
+      fieldLower.includes("tech") ||
+      fieldLower.includes("software") ||
+      roleLower.includes("developer") ||
+      roleLower.includes("engineer")
+    ) {
+      planItems.push(...(await this.generateTechPlan()))
+    } else if (
+      fieldLower.includes("education") ||
+      fieldLower.includes("teaching") ||
+      roleLower.includes("teacher") ||
+      roleLower.includes("tutor")
+    ) {
+      planItems.push(...(await this.generateEducationPlan()))
+    } else if (
+      fieldLower.includes("admin") ||
+      roleLower.includes("administrator") ||
+      roleLower.includes("receptionist")
+    ) {
+      planItems.push(...(await this.generateAdminPlan()))
+    } else if (
+      fieldLower.includes("logistics") ||
+      fieldLower.includes("driving") ||
+      roleLower.includes("driver") ||
+      roleLower.includes("warehouse")
+    ) {
+      planItems.push(...(await this.generateLogisticsPlan()))
     } else {
       planItems.push(...(await this.generateGeneralIndustryPlan(targetRole, industryField)))
     }
@@ -55,7 +90,7 @@ export class LearningPlannerAgent {
       this.userId,
       ApplicationStatus.REJECTED
     )
-    const prepPacks = await this.createInterviewPrepPacks(targetRole, rejectedApplications, isCareOrHealth)
+    const prepPacks = await this.createInterviewPrepPacks(targetRole, rejectedApplications, industryField)
 
     for (const prep of prepPacks) {
       planItems.push({
@@ -71,7 +106,7 @@ export class LearningPlannerAgent {
   }
 
   /**
-   * Generates UK Care Worker, Healthcare, and Nursing learning curricula
+   * Generates UK Care Worker and Social Care learning curricula
    */
   private async generateHealthAndCarePlan(role: string): Promise<LearningPlanItem[]> {
     const modules = [
@@ -99,63 +134,177 @@ export class LearningPlannerAgent {
         skill: "Safe Medication Administration (MAR)",
         hours: 5,
         description:
-          "Practical guidance on storing, recording, administering, and disposing of medications. Understand MAR charts, dosage checks, and error prevention.",
+          "Understand 6 Rights of Medication Administration, MAR chart auditing, safe storage, and reporting administration discrepancies or resident refusal.",
         resources: [
-          "NICE Guidelines - Managing Medicines in Care Homes: https://www.nice.org.uk/guidance/sc1",
-          "OpenLearn - Understanding Medicines: https://www.open.edu/openlearn/health-sports-psychology/understanding-medicines/content-section-0",
+          "NICE Guidelines - Managing medicines in care homes: https://www.nice.org.uk/guidance/sc1",
+          "Skills for Care - Medication Management: https://www.skillsforcare.org.uk/Developing-your-workforce/Care-topics/Medication/Medication.aspx",
         ],
       },
       {
-        skill: "Dementia Awareness & Person-Centred Care",
+        skill: "Dementia Awareness & Person-Centred Support",
         hours: 4,
         description:
-          "Learn compassionate communication techniques, managing distressed behaviors, and creating a supportive environment for individuals living with dementia.",
+          "Techniques for communication, validation therapy, environmental adaptation, and maintaining dignity in individuals living with Alzheimer's and vascular dementia.",
         resources: [
-          "Alzheimer's Society UK - Dementia Training & Best Practice: https://www.alzheimers.org.uk/dementia-professionals",
-          "SCIE - Dementia Care Video Walkthroughs: https://www.scie.org.uk/dementia/",
-        ],
-      },
-      {
-        skill: "Moving and Handling / Manual Handling",
-        hours: 3,
-        description:
-          "Safe operation of hoists, slide sheets, standing aids, and mobility equipment according to UK Health & Safety Executive regulations.",
-        resources: [
-          "HSE UK - Moving and Handling in Health and Social Care: https://www.hse.gov.uk/healthservices/moving-handling.htm",
-          "St John Ambulance - Manual Handling Training Guide: https://www.sja.org.uk/courses/workplace-first-aid/manual-handling/",
+          "Alzheimer's Society - Training and Resources: https://www.alzheimers.org.uk/",
+          "SCIE - Dementia Gateway: https://www.scie.org.uk/dementia/",
         ],
       },
     ]
 
-    const items: LearningPlanItem[] = []
+    return this.createTasksFromModules(modules, "Healthcare & Social Care")
+  }
 
-    for (const mod of modules) {
-      const task = await createLearningTask({
-        user_id: this.userId,
-        application_id: null,
-        title: `Course: ${mod.skill}`,
-        description: mod.description,
-        topic: "Health and Social Care",
-        difficulty_level: "BEGINNER",
-        estimated_hours: mod.hours,
-        resources: mod.resources,
-        notes: `Essential certification topic for ${role} roles across care homes and NHS providers.`,
-        completed_at: null,
-        priority: "HIGH",
-        completed: false,
-        due_date: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
-      })
+  /**
+   * Generates Nursing & Clinical Healthcare learning curricula
+   */
+  private async generateNursingPlan(): Promise<LearningPlanItem[]> {
+    const modules = [
+      {
+        skill: "NMC Code of Conduct & Clinical Revalidation",
+        hours: 5,
+        description:
+          "Prioritise people, practice effectively, preserve safety, and promote professionalism and trust under the Nursing and Midwifery Council guidelines.",
+        resources: [
+          "NMC UK - The Code: https://www.nmc.org.uk/standards/code/",
+          "Royal College of Nursing (RCN) Learning Portal: https://www.rcn.org.uk/professional-development",
+        ],
+      },
+      {
+        skill: "Clinical Triage & Patient Observations (NEWS2)",
+        hours: 4,
+        description:
+          "Systematic recording and escalation using the National Early Warning Score 2 (NEWS2) for deteriorating patients.",
+        resources: [
+          "Royal College of Physicians - NEWS2 Resources: https://www.rcplondon.ac.uk/projects/outputs/national-early-warning-score-news-2",
+        ],
+      },
+      {
+        skill: "Aseptic Non-Touch Technique (ANTT) & Wound Care",
+        hours: 4,
+        description:
+          "Standardized aseptic procedures, dressing selection, infection prevention, and chronic wound healing pathways.",
+        resources: [
+          "The-ANTT-Approach: https://www.antt.org/",
+        ],
+      },
+    ]
 
-      items.push({
-        topic: mod.skill,
-        tasks: task ? [task] : [],
-        estimatedHours: mod.hours,
-        resources: mod.resources,
-        priority: "HIGH",
-      })
-    }
+    return this.createTasksFromModules(modules, "Nursing & Clinical Healthcare")
+  }
 
-    return items
+  /**
+   * Generates Technology & Software Engineering learning curricula
+   */
+  private async generateTechPlan(): Promise<LearningPlanItem[]> {
+    const modules = [
+      {
+        skill: "Full Stack Architecture & Next.js Patterns",
+        hours: 6,
+        description:
+          "Server Components, Server Actions, streaming SSR, API routing, and state orchestration in enterprise web platforms.",
+        resources: [
+          "Next.js Official Documentation: https://nextjs.org/docs",
+          "web.dev - Web Performance Architecture: https://web.dev/",
+        ],
+      },
+      {
+        skill: "Distributed Systems & Database Query Optimization",
+        hours: 5,
+        description:
+          "PostgreSQL indexing, connection pooling, transactions, caching layers, and asynchronous background worker queues.",
+        resources: [
+          "Use The Index, Luke! - SQL Indexing Guide: https://use-the-index-luke.com/",
+        ],
+      },
+      {
+        skill: "System Design & Scalability Interviews",
+        hours: 5,
+        description:
+          "Designing high-availability systems, rate limiters, microservices decomposition, and trade-off analysis under high traffic.",
+        resources: [
+          "System Design Primer - GitHub: https://github.com/donnemartin/system-design-primer",
+        ],
+      },
+    ]
+
+    return this.createTasksFromModules(modules, "Technology & Software Engineering")
+  }
+
+  /**
+   * Generates Education & Teaching curricula
+   */
+  private async generateEducationPlan(): Promise<LearningPlanItem[]> {
+    const modules = [
+      {
+        skill: "Special Educational Needs and Disabilities (SEND) Support",
+        hours: 5,
+        description:
+          "Understanding autism spectrum conditions, ADHD strategies, dyslexia support, and EHCP (Education, Health and Care Plan) delivery.",
+        resources: [
+          "Council for Disabled Children - SEND Training: https://councilfordisabledchildren.org.uk/",
+          "National Autistic Society - Education Resources: https://www.autism.org.uk/",
+        ],
+      },
+      {
+        skill: "Safeguarding in Schools (Keeping Children Safe in Education)",
+        hours: 4,
+        description:
+          "Statutory guidance for schools and colleges on safeguarding children and safer working practice.",
+        resources: [
+          "GOV.UK - Keeping children safe in education (KCSIE): https://www.gov.uk/government/publications/keeping-children-safe-in-education--2",
+        ],
+      },
+    ]
+
+    return this.createTasksFromModules(modules, "Education & Teaching")
+  }
+
+  /**
+   * Generates Administration & Office Support curricula
+   */
+  private async generateAdminPlan(): Promise<LearningPlanItem[]> {
+    const modules = [
+      {
+        skill: "Advanced Document Automation & Spreadsheet Analysis",
+        hours: 4,
+        description:
+          "Mastering data lookups, pivot reporting, document templating, and automated scheduling workflows in Excel and Google Sheets.",
+        resources: [
+          "GCF LearnFree - Excel & Office Tutorials: https://edu.gcfglobal.org/en/excel/",
+        ],
+      },
+      {
+        skill: "Data Protection, GDPR & Confidential Record Keeping",
+        hours: 3,
+        description:
+          "Compliance with UK GDPR, secure document handling, retention policies, and data subject access requests.",
+        resources: [
+          "Information Commissioner's Office (ICO) Guidance: https://ico.org.uk/for-organisations/",
+        ],
+      },
+    ]
+
+    return this.createTasksFromModules(modules, "Administration & Customer Service")
+  }
+
+  /**
+   * Generates Logistics & Driving curricula
+   */
+  private async generateLogisticsPlan(): Promise<LearningPlanItem[]> {
+    const modules = [
+      {
+        skill: "Health & Safety, Manual Handling & COSHH in Warehousing",
+        hours: 4,
+        description:
+          "Ergonomic lifting techniques, hazardous substances handling, and warehouse safety regulations under HSE guidance.",
+        resources: [
+          "Health and Safety Executive (HSE) - Warehousing: https://www.hse.gov.uk/logistics/",
+        ],
+      },
+    ]
+
+    return this.createTasksFromModules(modules, "Logistics & Driving")
   }
 
   /**
@@ -184,17 +333,15 @@ export class LearningPlannerAgent {
           "Alison - Professional Communication Skills: https://alison.com/",
         ],
       },
-      {
-        skill: `Technical Tools & Certifications for ${role}`,
-        hours: 5,
-        description: `Practical software, regulatory certifications, and operational workflows utilized in modern ${role} vacancies.`,
-        resources: [
-          `Google Career Certificates - https://grow.google/certificates/`,
-          `UK Government Skills Toolkit - https://nationalcareers.service.gov.uk/find-a-course/the-skills-toolkit`,
-        ],
-      },
     ]
 
+    return this.createTasksFromModules(modules, industry)
+  }
+
+  private async createTasksFromModules(
+    modules: { skill: string; hours: number; description: string; resources: string[] }[],
+    topic: string
+  ): Promise<LearningPlanItem[]> {
     const items: LearningPlanItem[] = []
 
     for (const mod of modules) {
@@ -203,11 +350,11 @@ export class LearningPlannerAgent {
         application_id: null,
         title: `Module: ${mod.skill}`,
         description: mod.description,
-        topic: industry,
+        topic: topic,
         difficulty_level: "INTERMEDIATE",
         estimated_hours: mod.hours,
         resources: mod.resources,
-        notes: `Targeted to accelerate placement in ${role} vacancies.`,
+        notes: `Targeted to accelerate placement and qualification.`,
         completed_at: null,
         priority: "MEDIUM",
         completed: false,
@@ -219,7 +366,7 @@ export class LearningPlannerAgent {
         tasks: task ? [task] : [],
         estimatedHours: mod.hours,
         resources: mod.resources,
-        priority: "MEDIUM",
+        priority: "HIGH",
       })
     }
 
@@ -227,49 +374,62 @@ export class LearningPlannerAgent {
   }
 
   /**
-   * Generates realistic interview prep packs
+   * Creates realistic, industry-specific interview preparation packs
    */
   private async createInterviewPrepPacks(
     role: string,
     rejections: Application[],
-    isCareOrHealth: boolean
+    industryField: string
   ): Promise<InterviewPrepPack[]> {
-    const questions = isCareOrHealth
-      ? [
-          "How would you handle a resident who is agitated or refusing their scheduled medication?",
-          "Can you describe an instance where you identified and reported a safeguarding concern?",
-          "How do you maintain person-centred care, dignity, and privacy during personal care assistance?",
-          "What would you do if a colleague was not following infection control or safe moving and handling procedures?",
-        ]
-      : [
-          "Why are you interested in this role and our organisation?",
-          "Can you describe a challenging situation with a client or team member and how you resolved it?",
-          "How do you prioritize multiple competing demands during a busy shift or workday?",
-          "What steps do you take to ensure high quality and regulatory compliance in your daily duties?",
-        ]
+    const fieldLower = industryField.toLowerCase()
+    const roleLower = role.toLowerCase()
 
-    const modelAnswers: Record<string, string> = isCareOrHealth
-      ? {
-          "Handling medication refusal":
-            "I remain calm, listen attentively, never force the resident, explain the benefit gently, check for any discomfort, document the refusal on the MAR chart, and inform the senior nurse/team leader.",
-          "Safeguarding reporting":
-            "My priority is the immediate safety of the individual. I document factual observations without delay, maintain strict confidentiality, and report directly to the designated safeguarding lead in accordance with our duty of care.",
-          "Dignity in personal care":
-            "I explain each step beforehand, close curtains/doors, cover parts of the body not being washed, offer choices (e.g. clothing selection), and encourage them to do as much as they comfortably can to promote independence.",
-        }
-      : {
-          "Prioritizing demands":
-            "I assess urgent vs important tasks, communicate clearly with supervisors and colleagues, and maintain a structured checklist while remaining flexible to emergencies.",
-        }
+    let questions: string[] = []
+    let modelAnswers: Record<string, string> = {}
+    let studyResources: string[] = []
 
-    const studyResources = isCareOrHealth
-      ? [
-          "Care Worker Interview Questions & Answers - NHS & Social Care: https://www.skillsforcare.org.uk/",
-          "Social Care Institute for Excellence (SCIE) Practice Guides: https://www.scie.org.uk/",
-        ]
-      : [
-          "National Careers Service - Interview Skills & Practice: https://nationalcareers.service.gov.uk/careers-advice/interview-advice",
-        ]
+    if (fieldLower.includes("care") || roleLower.includes("care")) {
+      questions = [
+        "How do you handle a resident who refuses their prescribed medication or personal care?",
+        "Can you describe an instance where you identified and reported a safeguarding concern?",
+        "How do you maintain person-centred care, dignity, and privacy during personal care assistance?",
+      ]
+      modelAnswers = {
+        "Handling medication refusal":
+          "I remain calm, listen attentively, never force the resident, explain the benefit gently, check for any discomfort, document the refusal on the MAR chart, and inform the senior nurse/team leader.",
+        "Safeguarding reporting":
+          "My priority is the immediate safety of the individual. I document factual observations without delay, maintain strict confidentiality, and report directly to the designated safeguarding lead in accordance with our duty of care.",
+      }
+      studyResources = [
+        "Skills for Care - Interview Advice: https://www.skillsforcare.org.uk/",
+      ]
+    } else if (fieldLower.includes("tech") || roleLower.includes("developer") || roleLower.includes("engineer")) {
+      questions = [
+        "Walk me through how you design and structure a high-performance REST/GraphQL API.",
+        "How do you handle database query bottlenecks and caching in a distributed system?",
+        "Describe a critical production bug you investigated and how you resolved it without downtime.",
+      ]
+      modelAnswers = {
+        "Database bottleneck":
+          "I inspect slow query logs with EXPLAIN ANALYZE, evaluate missing compound indexes, add Redis caching for read-heavy hot paths, and consider read replicas or connection pooling.",
+      }
+      studyResources = [
+        "Tech Interview Handbook: https://www.techinterviewhandbook.org/",
+      ]
+    } else {
+      questions = [
+        "Why are you interested in this role and our organisation?",
+        "Can you describe a challenging situation with a stakeholder or customer and how you resolved it?",
+        "How do you prioritize multiple competing demands during a busy shift or workday?",
+      ]
+      modelAnswers = {
+        "Prioritizing demands":
+          "I assess urgent vs important tasks, communicate clearly with supervisors and colleagues, and maintain a structured checklist while remaining flexible to emergencies.",
+      }
+      studyResources = [
+        "National Careers Service - Interview Advice: https://nationalcareers.service.gov.uk/careers-advice/interview-advice",
+      ]
+    }
 
     const pack: InterviewPrepPack = {
       role: role,

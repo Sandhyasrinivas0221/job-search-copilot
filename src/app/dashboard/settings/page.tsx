@@ -403,6 +403,157 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {/* Quick Industry Presets */}
+            <div>
+              <p className="text-xs font-bold text-gray-700 mb-2">
+                Quick Select Profession Template
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCareerProfile({
+                      ...careerProfile,
+                      target_role: "Care Worker",
+                      industry_field: "Healthcare & Social Care",
+                      target_location: "United Kingdom",
+                      skills: [
+                        "Dementia Care",
+                        "Safeguarding Adults",
+                        "Medication Administration",
+                        "First Aid",
+                        "Moving and Handling",
+                        "Infection Control",
+                        "Person-Centred Care",
+                      ],
+                    })
+                  }
+                  className="p-2.5 text-center rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-colors text-xs"
+                >
+                  <span className="text-lg block">🩺</span>
+                  <span className="font-bold text-gray-900 block mt-0.5">Care Worker</span>
+                  <span className="text-[10px] text-gray-500">Social Care</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCareerProfile({
+                      ...careerProfile,
+                      target_role: "Registered Nurse",
+                      industry_field: "Nursing & Clinical Healthcare",
+                      target_location: "United Kingdom",
+                      skills: [
+                        "Clinical Patient Care",
+                        "NMC Code of Conduct",
+                        "Medication Administration",
+                        "Wound Care",
+                        "Vital Signs (NEWS2)",
+                      ],
+                    })
+                  }
+                  className="p-2.5 text-center rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/50 transition-colors text-xs"
+                >
+                  <span className="text-lg block">🏥</span>
+                  <span className="font-bold text-gray-900 block mt-0.5">Staff Nurse</span>
+                  <span className="text-[10px] text-gray-500">Clinical / NHS</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCareerProfile({
+                      ...careerProfile,
+                      target_role: "Software Engineer",
+                      industry_field: "Technology & Software Engineering",
+                      target_location: "Remote",
+                      skills: [
+                        "Full Stack Development",
+                        "TypeScript & React",
+                        "Node.js & Next.js",
+                        "SQL & Databases",
+                        "System Architecture",
+                      ],
+                    })
+                  }
+                  className="p-2.5 text-center rounded-xl border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-colors text-xs"
+                >
+                  <span className="text-lg block">💻</span>
+                  <span className="font-bold text-gray-900 block mt-0.5">Software Eng</span>
+                  <span className="text-[10px] text-gray-500">Tech & Cloud</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCareerProfile({
+                      ...careerProfile,
+                      target_role: "Teaching Assistant",
+                      industry_field: "Education & Teaching",
+                      target_location: "United Kingdom",
+                      skills: [
+                        "Classroom Management",
+                        "SEN Support",
+                        "Safeguarding in Schools",
+                        "Lesson Delivery",
+                      ],
+                    })
+                  }
+                  className="p-2.5 text-center rounded-xl border border-gray-200 hover:border-amber-500 hover:bg-amber-50/50 transition-colors text-xs"
+                >
+                  <span className="text-lg block">🎓</span>
+                  <span className="font-bold text-gray-900 block mt-0.5">Teaching Asst</span>
+                  <span className="text-[10px] text-gray-500">Education</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCareerProfile({
+                      ...careerProfile,
+                      target_role: "Administrative Assistant",
+                      industry_field: "Administration & Customer Service",
+                      target_location: "United Kingdom",
+                      skills: [
+                        "Office Administration",
+                        "Customer Communication",
+                        "Scheduling",
+                        "Excel & Docs",
+                      ],
+                    })
+                  }
+                  className="p-2.5 text-center rounded-xl border border-gray-200 hover:border-purple-500 hover:bg-purple-50/50 transition-colors text-xs"
+                >
+                  <span className="text-lg block">📁</span>
+                  <span className="font-bold text-gray-900 block mt-0.5">Admin & Office</span>
+                  <span className="text-[10px] text-gray-500">Support</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCareerProfile({
+                      ...careerProfile,
+                      target_role: "Delivery Driver",
+                      industry_field: "Logistics, Warehousing & Driving",
+                      target_location: "United Kingdom",
+                      skills: [
+                        "Route Navigation",
+                        "Health & Safety",
+                        "Inventory Picking",
+                        "Manual Handling",
+                      ],
+                    })
+                  }
+                  className="p-2.5 text-center rounded-xl border border-gray-200 hover:border-orange-500 hover:bg-orange-50/50 transition-colors text-xs"
+                >
+                  <span className="text-lg block">🚚</span>
+                  <span className="font-bold text-gray-900 block mt-0.5">Driver / WH</span>
+                  <span className="text-[10px] text-gray-500">Logistics</span>
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">
