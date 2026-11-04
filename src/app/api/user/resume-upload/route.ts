@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
+import { checkRateLimit } from "@/lib/rate-limit"
+
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB limit to prevent DoS
+const MAX_TEXT_LENGTH = 100000 // 100,000 chars limit
 
 /**
  * Universal Skill and Role Dictionary across different industries
@@ -112,6 +116,10 @@ const INDUSTRY_RULES = [
 ]
 
 export async function POST(request: NextRequest) {
+  // Prevent DoS: Rate limit to 5 uploads per minute per client
+  const rateLimitResponse = checkRateLimit(request, { limit: 5, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const contentType = request.headers.get("content-type") || ""
     let userId = ""
@@ -129,13 +137,26 @@ export async function POST(request: NextRequest) {
       textInput = body.text || ""
     }
 
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 })
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json({ error: "Missing or invalid userId" }, { status: 400 })
+    }
+
+    // Sanitize userId
+    userId = userId.trim()
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(userId)) {
+      return NextResponse.json({ error: "Invalid userId format" }, { status: 400 })
     }
 
     let resumeText = ""
 
     if (file) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        return NextResponse.json(
+          { error: "File size exceeds the 5MB limit. Please upload a smaller resume." },
+          { status: 413 }
+        )
+      }
+
       const buffer = Buffer.from(await file.arrayBuffer())
       const filename = file.name.toLowerCase()
 
@@ -164,6 +185,12 @@ export async function POST(request: NextRequest) {
         resumeText = buffer.toString("utf-8")
       }
     } else if (textInput) {
+      if (textInput.length > MAX_TEXT_LENGTH) {
+        return NextResponse.json(
+          { error: "Resume text is too long (max 100,000 characters)." },
+          { status: 413 }
+        )
+      }
       resumeText = textInput
     }
 

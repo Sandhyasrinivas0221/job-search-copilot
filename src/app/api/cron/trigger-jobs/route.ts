@@ -9,8 +9,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { JobMarketAgent } from "@/agents/job-market-agent"
 import { getUser, getOrCreateUser } from "@/lib/db"
+import { verifyCronAuthorization } from "@/lib/auth-guard"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
+  // Prevent unauthenticated public sweeps
+  const authCheck = verifyCronAuthorization(request)
+  if (!authCheck.authorized) return authCheck.response!
+
+  const rateLimitResponse = checkRateLimit(request, { limit: 20, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")

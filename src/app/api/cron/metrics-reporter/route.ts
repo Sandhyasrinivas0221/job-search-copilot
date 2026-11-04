@@ -1,35 +1,26 @@
-/**
- * Vercel Cron: Metrics Reporter Agent (Daily Email)
- *
- * Route: /api/cron/metrics-reporter
- * Schedule: Daily at 9:00 AM (0 9 * * *)
- *
- * This agent sends the daily "Jobs to Apply" email with:
- * - New job suggestions
- * - Easy apply opportunities
- * - Dashboard metrics
- */
+import { NextRequest, NextResponse } from "next/server"
+import { supabaseAdmin } from "@/lib/supabase"
+import { sendEmail, buildDailyEmailHTML } from "@/lib/email-system"
+import { logAgentAction } from "@/lib/agent-logger"
+import { verifyCronAuthorization } from "@/lib/auth-guard"
+import { checkRateLimit } from "@/lib/rate-limit"
 
-import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
-import { sendEmail, buildDailyEmailHTML } from '@/lib/email-system'
-import { logAgentAction } from '@/lib/agent-logger'
-
-export const runtime = 'nodejs'
+export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const authCheck = verifyCronAuthorization(request)
+  if (!authCheck.authorized) return authCheck.response!
+
+  const rateLimitResponse = checkRateLimit(request, { limit: 10, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
 
   try {
-    console.log('[cron/metrics-reporter] Starting metrics reporter agent (daily email)')
+    console.log("[cron/metrics-reporter] Starting metrics reporter agent (daily email)")
 
     // Get all active users
     const { data: users, error: usersError } = await supabaseAdmin
-      .from('users')
-      .select('id, email')
+      .from("users")
+      .select("id, email")
       .limit(100)
 
     if (usersError || !users) {
@@ -44,14 +35,14 @@ export async function GET(request: NextRequest) {
       try {
         // Compute metrics
         const { data: applications } = await supabaseAdmin
-          .from('applications')
-          .select('*')
-          .eq('user_id', user.id)
+          .from("applications")
+          .select("*")
+          .eq("user_id", user.id)
 
         const totalApplications = applications?.length || 0
-        const interviews = applications?.filter((a) => a.current_status === 'INTERVIEW').length || 0
-        const offers = applications?.filter((a) => a.current_status === 'OFFER').length || 0
-        const rejections = applications?.filter((a) => a.current_status === 'REJECTED').length || 0
+        const interviews = applications?.filter((a) => a.current_status === "INTERVIEW").length || 0
+        const offers = applications?.filter((a) => a.current_status === "OFFER").length || 0
+        const rejections = applications?.filter((a) => a.current_status === "REJECTED").length || 0
 
         const metrics = {
           totalApplications,
@@ -61,14 +52,13 @@ export async function GET(request: NextRequest) {
         }
 
         // Get job suggestions for today
-        const today = new Date().toISOString().split('T')[0]
         const { data: jobSuggestions } = await supabaseAdmin
-          .from('job_suggestions')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('applied', false)
-          .eq('dismissed', false)
-          .order('match_score', { ascending: false })
+          .from("job_suggestions")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("applied", false)
+          .eq("dismissed", false)
+          .order("match_score", { ascending: false })
           .limit(20)
 
         const easyApply = jobSuggestions?.filter((j) => j.easy_apply) || []
@@ -84,7 +74,7 @@ export async function GET(request: NextRequest) {
         const html = buildDailyEmailHTML(metrics, jobSuggestions || [], easyApply, manualApply)
         const sent = await sendEmail({
           to: user.email,
-          subject: `🎯 Daily Job Opportunities (${(jobSuggestions?.length || 0)} new jobs)`,
+          subject: `🎯 Daily Job Opportunities (${jobSuggestions?.length || 0} new jobs)`,
           html,
         })
 
@@ -92,12 +82,12 @@ export async function GET(request: NextRequest) {
           emailsSent++
 
           // Log email sent
-          await supabaseAdmin.from('email_logs').insert([
+          await supabaseAdmin.from("email_logs").insert([
             {
               user_id: user.id,
               email_to: user.email,
               subject: `Daily Job Opportunities (${jobSuggestions?.length || 0} new jobs)`,
-              status: 'SENT',
+              status: "SENT",
             },
           ])
         } else {
@@ -111,15 +101,15 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      message: 'Metrics reporter agent executed',
+      message: "Metrics reporter agent executed",
       emailsSent,
       emailsFailed,
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('[cron/metrics-reporter] Error:', error)
+    console.error("[cron/metrics-reporter] Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to run metrics reporter" },
       { status: 500 }
     )
   }

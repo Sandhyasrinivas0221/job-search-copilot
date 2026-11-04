@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export interface UserCareerProfile {
   id: string
@@ -97,6 +98,9 @@ const INDUSTRY_PRESETS: Record<
 }
 
 export async function GET(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 120, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const userId = request.nextUrl.searchParams.get("userId")
     if (!userId) {
@@ -165,6 +169,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 30, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const {

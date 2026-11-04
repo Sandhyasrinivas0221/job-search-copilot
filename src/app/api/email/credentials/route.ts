@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
-import { EmailCredentials, GmailConfig, SmtpConfig } from "@/types"
+import { checkRateLimit } from "@/lib/rate-limit"
+
+// Fields that are safe to expose to the frontend
+const SAFE_CREDENTIAL_COLUMNS = "id, user_id, provider, email_address, is_connected, last_verified_at, created_at, updated_at"
+
+function sanitizeCredential(cred: any) {
+  if (!cred) return null
+  const { gmail_refresh_token, gmail_access_token, smtp_password, ...safe } = cred
+  return safe
+}
 
 /**
  * GET /api/email/credentials
- * Fetch user's email credentials
+ * Fetch user's email credentials (masked for security)
  */
 export async function GET(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 60, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const userId = request.nextUrl.searchParams.get("userId")
     if (!userId) {
@@ -16,9 +28,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Only select non-sensitive columns - never leak refresh tokens or passwords to client
     const { data: credentials, error } = await supabaseAdmin
       .from("email_credentials")
-      .select("*")
+      .select(SAFE_CREDENTIAL_COLUMNS)
       .eq("user_id", userId)
 
     if (error) throw error
@@ -30,7 +43,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Email credentials fetch error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to fetch credentials" },
       { status: 500 }
     )
   }
@@ -41,6 +54,9 @@ export async function GET(request: NextRequest) {
  * Save email credentials (Gmail OAuth or SMTP)
  */
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 15, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const { userId, provider, email_address, gmail_config, smtp_config } = body
@@ -92,13 +108,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      credentials: data,
+      credentials: sanitizeCredential(data),
       message: `${provider === "gmail" ? "Gmail" : "SMTP"} email configuration saved successfully`,
     })
   } catch (error) {
     console.error("Email credentials save error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to save email configuration" },
       { status: 500 }
     )
   }
@@ -109,6 +125,9 @@ export async function POST(request: NextRequest) {
  * Delete email credentials
  */
 export async function DELETE(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 10, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const userId = request.nextUrl.searchParams.get("userId")
     const provider = request.nextUrl.searchParams.get("provider")
@@ -135,7 +154,7 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Email credentials delete error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to delete credentials" },
       { status: 500 }
     )
   }

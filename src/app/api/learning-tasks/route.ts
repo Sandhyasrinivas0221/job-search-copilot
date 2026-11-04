@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getLearningTasks, updateLearningTask, createLearningTask } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 /**
  * API Route: Learning Tasks
@@ -9,6 +10,9 @@ import { getLearningTasks, updateLearningTask, createLearningTask } from "@/lib/
  */
 
 export async function GET(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 120, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
@@ -30,13 +34,16 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Learning Tasks GET Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to fetch learning tasks" },
       { status: 500 }
     )
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 60, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const { id, completed, ...updates } = body
@@ -63,13 +70,16 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error("Learning Tasks PATCH Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to update learning task" },
       { status: 500 }
     )
   }
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 30, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const {
@@ -94,12 +104,12 @@ export async function POST(request: NextRequest) {
     const newTask = await createLearningTask({
       user_id: userId,
       application_id: null,
-      title,
-      description: description || null,
-      topic: topic || null,
+      title: String(title).substring(0, 150),
+      description: description ? String(description).substring(0, 2000) : null,
+      topic: topic ? String(topic).substring(0, 100) : null,
       difficulty_level,
       estimated_hours: estimated_hours ? Number(estimated_hours) : 2,
-      resources: Array.isArray(resources) ? resources : [resources],
+      resources: Array.isArray(resources) ? resources.slice(0, 10) : [resources],
       notes: null,
       completed: false,
       completed_at: null,
@@ -114,7 +124,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Learning Tasks POST Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to create learning task" },
       { status: 500 }
     )
   }

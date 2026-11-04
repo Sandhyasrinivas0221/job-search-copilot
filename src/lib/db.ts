@@ -143,13 +143,21 @@ export async function createApplication(app: Omit<Application, "id" | "created_a
   return data
 }
 
-export async function updateApplication(applicationId: string, updates: Partial<Application>): Promise<Application | null> {
-  const { data, error } = await supabaseAdmin
+export async function updateApplication(
+  applicationId: string,
+  updates: Partial<Application>,
+  userId?: string
+): Promise<Application | null> {
+  let query = supabaseAdmin
     .from("applications")
     .update(updates)
     .eq("id", applicationId)
-    .select()
-    .single()
+
+  if (userId) {
+    query = query.eq("user_id", userId)
+  }
+
+  const { data, error } = await query.select().single()
 
   if (error) {
     console.error("Error updating application:", error)
@@ -158,11 +166,17 @@ export async function updateApplication(applicationId: string, updates: Partial<
   return data
 }
 
-export async function deleteApplication(applicationId: string): Promise<boolean> {
-  const { error } = await supabaseAdmin
+export async function deleteApplication(applicationId: string, userId?: string): Promise<boolean> {
+  let query = supabaseAdmin
     .from("applications")
     .delete()
     .eq("id", applicationId)
+
+  if (userId) {
+    query = query.eq("user_id", userId)
+  }
+
+  const { error } = await query
 
   if (error) {
     console.error("Error deleting application:", error)

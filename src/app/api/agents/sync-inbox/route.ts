@@ -2,19 +2,31 @@ import { NextRequest, NextResponse } from "next/server"
 import { getValidGmailAccessToken, fetchGmailEmails } from "@/lib/gmail-fetcher"
 import { MailAgent } from "@/agents/mail-agent"
 import { getApplications, getUser } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 
-/**
- * POST /api/agents/sync-inbox
- * Manually or programmatically triggers an immediate inbox scan for job applications
- */
-export async function POST(request: NextRequest) {
+async function handleSync(request: NextRequest, userIdParam?: string) {
+  // Rate limit: 10 sync operations per minute per client/user
+  const rateLimitResponse = checkRateLimit(request, {
+    limit: 10,
+    windowSeconds: 60,
+    identifier: userIdParam,
+  })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
-    const body = await request.json().catch(() => ({}))
-    const searchParams = request.nextUrl.searchParams
-    const userId = body.userId || searchParams.get("userId")
-
+    let userId = userIdParam
     if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 })
+      const searchParams = request.nextUrl.searchParams
+      userId = searchParams.get("userId") || undefined
+    }
+
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json({ error: "Missing or invalid userId" }, { status: 400 })
+    }
+
+    userId = userId.trim()
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(userId)) {
+      return NextResponse.json({ error: "Invalid userId format" }, { status: 400 })
     }
 
     console.log(`[api/agents/sync-inbox] Starting inbox sync for user ${userId}...`)
@@ -23,10 +35,13 @@ export async function POST(request: NextRequest) {
     const accessToken = await getValidGmailAccessToken(userId)
 
     if (!accessToken) {
-      return NextResponse.json({
-        success: false,
-        error: "No connected Gmail account found or token could not be refreshed. Please reconnect Gmail in Settings.",
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No connected Gmail account found or token could not be refreshed. Please reconnect Gmail in Settings.",
+        },
+        { status: 400 }
+      )
     }
 
     // Load candidate's parsed resume and career profile to guide targeted email search
@@ -74,8 +89,25 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[api/agents/sync-inbox] Error syncing inbox:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to sync inbox. Please try again later." },
       { status: 500 }
     )
   }
+}
+
+/**
+ * GET /api/agents/sync-inbox?userId=<id>
+ */
+export async function GET(request: NextRequest) {
+  const userId = request.nextUrl.searchParams.get("userId") || undefined
+  return handleSync(request, userId)
+}
+
+/**
+ * POST /api/agents/sync-inbox
+ */
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}))
+  const userId = body.userId || request.nextUrl.searchParams.get("userId") || undefined
+  return handleSync(request, userId)
 }

@@ -6,15 +6,19 @@ import {
   createStatusHistory,
 } from "@/lib/db"
 import { ApplicationStatus } from "@/types"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 /**
  * API Route: Job Suggestions
  * GET   /api/suggestions?userId=<id>&applied=<true|false>&dismissed=<true|false>
  * PATCH /api/suggestions (body: { id, applied?: boolean, dismissed?: boolean })
- * POST  /api/suggestions (body: { suggestionId, userId }) -> Converts suggestion to application
+ * POST  /api/suggestions (body: { suggestion, userId }) -> Converts suggestion to application
  */
 
 export async function GET(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 120, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
@@ -42,13 +46,16 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Suggestions GET Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to fetch suggestions" },
       { status: 500 }
     )
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 60, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const { id, applied, dismissed } = body
@@ -73,13 +80,16 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error("Suggestions PATCH Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to update suggestion" },
       { status: 500 }
     )
   }
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 30, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const { suggestion, userId } = body
@@ -94,15 +104,15 @@ export async function POST(request: NextRequest) {
     // 1. Create Application from Suggestion
     const newApp = await createApplication({
       user_id: userId,
-      company_name: suggestion.company_name,
-      job_title: suggestion.job_title,
+      company_name: String(suggestion.company_name).substring(0, 100),
+      job_title: String(suggestion.job_title).substring(0, 150),
       current_status: ApplicationStatus.APPLIED,
-      location: suggestion.location || null,
-      salary_min: suggestion.salary_min || null,
-      salary_max: suggestion.salary_max || null,
-      job_url: suggestion.job_url || null,
-      description: suggestion.description || null,
-      source_site: suggestion.source_site || "Job Suggestion",
+      location: suggestion.location ? String(suggestion.location).substring(0, 100) : null,
+      salary_min: suggestion.salary_min ? Number(suggestion.salary_min) : null,
+      salary_max: suggestion.salary_max ? Number(suggestion.salary_max) : null,
+      job_url: suggestion.job_url ? String(suggestion.job_url).substring(0, 500) : null,
+      description: suggestion.description ? String(suggestion.description).substring(0, 5000) : null,
+      source_site: suggestion.source_site ? String(suggestion.source_site).substring(0, 50) : "Job Suggestion",
       easy_apply: Boolean(suggestion.easy_apply),
       applied_date: new Date().toISOString(),
       last_update: new Date().toISOString(),
@@ -141,7 +151,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Suggestions POST Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to apply to suggestion" },
       { status: 500 }
     )
   }

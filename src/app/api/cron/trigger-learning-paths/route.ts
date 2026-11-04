@@ -1,30 +1,18 @@
-/**
- * Phase 5: Learning Path Service Trigger Endpoint
- *
- * Analyzes active job applications and generates personalized learning path recommendations
- * Extracts job context from applications, identifies skill gaps, and suggests structured learning
- *
- * Endpoint: POST /api/cron/trigger-learning-paths?userId=<id>
- *
- * Response includes:
- * - Recommended learning paths for each active application
- * - Skill gaps analysis
- * - Market trends & demand analysis
- * - Transition role suggestions
- * - Prioritized learning tasks
- */
-
 import { NextRequest, NextResponse } from "next/server"
-import { LearningPathService } from "@/lib/learning-path-service"
+import { LearningPathService, LearningPathRecommendation } from "@/lib/learning-path-service"
 import { supabaseAdmin } from "@/lib/supabase"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 15, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
 
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId parameter" }, { status: 400 })
+    if (!userId || !/^[a-zA-Z0-9_-]{1,64}$/.test(userId)) {
+      return NextResponse.json({ error: "Missing or invalid userId parameter" }, { status: 400 })
     }
 
     console.log(`[trigger/learning-paths] Starting learning path analysis for user ${userId}`)
@@ -34,7 +22,8 @@ export async function POST(request: NextRequest) {
     await service.initialize()
 
     // Generate recommendations for all active applications
-    const recommendations = await service.generateRecommendationsForAllApplications()
+    const recommendations: LearningPathRecommendation[] =
+      await service.generateRecommendationsForAllApplications()
 
     console.log(
       `[trigger/learning-paths] Generated ${recommendations.length} learning path recommendations`
@@ -48,66 +37,64 @@ export async function POST(request: NextRequest) {
       priority: rec.priority,
       totalEstimatedHours: rec.totalEstimatedHours,
       reasoning: rec.reasoning,
+      skillGapsCount: rec.skillGaps.length,
       skillGaps: rec.skillGaps.map((gap) => ({
-        name: gap.skillName,
+        skillName: gap.skillName,
         category: gap.skillCategory,
-        priority: gap.priority,
         marketFrequency: gap.marketFrequency,
-        estimatedHours: gap.estimatedHoursToAcquire,
-        topResources: gap.resources.slice(0, 2).map((r) => ({
-          title: r.title,
-          url: r.url,
-          type: r.type,
-          platform: r.platform,
-          estimatedHours: r.estimatedHours,
-        })),
       })),
-      recommendedSkills: rec.targetSkillPaths.slice(0, 3).map((sp) => ({
-        skillName: sp.skill.skillName,
-        category: sp.skill.skillCategory,
-        difficulty: sp.difficulty,
-        relevanceScore: sp.relevanceScore,
-        estimatedHours: sp.estimatedHours,
-        resources: sp.resources.slice(0, 2).map((r) => ({
-          title: r.title,
-          url: r.url,
-          type: r.type,
-          platform: r.platform,
-        })),
+      targetSkillPaths: rec.targetSkillPaths.map((p) => ({
+        skillName: p.skill.skillName,
+        difficulty: p.difficulty,
+        estimatedHours: p.estimatedHours,
+        relevanceScore: p.relevanceScore,
+        resourcesCount: p.resources.length,
       })),
-      transitionRoles: rec.transitionRoles.map((tr) => ({
-        title: tr.title,
-        description: tr.description,
-        skillMatch: tr.currentSkillMatch,
-        estimatedMonths: tr.estimatedMonthsToTransition,
-      })),
-      marketContext: {
-        demandLevel: rec.marketDemand.demandLevel,
-        trends: rec.marketDemand.trendsAnalysis,
-      },
+      transitionRoles: rec.transitionRoles,
     }))
+
+    // Save recommendations as learning tasks to database
+    try {
+      for (const rec of recommendations) {
+        for (const path of rec.targetSkillPaths) {
+          const { error: taskError } = await supabaseAdmin.from("learning_tasks").insert([
+            {
+              user_id: userId,
+              title: `Master ${path.skill.skillName}`,
+              topic: path.skill.skillCategory || "Skill Development",
+              priority: rec.priority === "CRITICAL" ? "HIGH" : rec.priority,
+              estimated_hours: path.estimatedHours,
+              due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              resources: path.resources,
+              completed: false,
+            },
+          ])
+
+          if (taskError) {
+            console.warn(`[trigger/learning-paths] Could not save task for ${path.skill.skillName}`)
+          }
+        }
+      }
+    } catch (saveError) {
+      console.warn("[trigger/learning-paths] Could not persist tasks to database:", saveError)
+    }
 
     return NextResponse.json({
       success: true,
-      message: "Learning path analysis completed",
-      applicationsAnalyzed: recommendations.length,
+      message: "Learning paths analyzed successfully",
+      userId,
+      recommendationsCount: recommendations.length,
       recommendations: formattedRecommendations,
-      summary: {
-        highPriorityJobs: recommendations.filter((r) => r.priority === "CRITICAL" || r.priority === "HIGH")
-          .length,
-        totalLearningHours: recommendations.reduce((sum, r) => sum + r.totalEstimatedHours, 0),
-        averageSkillGaps: Math.round(
-          recommendations.reduce((sum, r) => sum + r.skillGaps.length, 0) / Math.max(recommendations.length, 1)
-        ),
+      marketInsights: {
+        analyzedJobsCount: recommendations.length,
         topTrendingSkills: extractTopTrends(recommendations),
       },
     })
   } catch (error) {
-    console.error("[trigger/learning-paths] Error generating learning paths:", error)
+    console.error("[trigger/learning-paths] Error generating recommendations:", error)
     return NextResponse.json(
       {
-        error: "Failed to generate learning paths",
-        details: error instanceof Error ? error.message : String(error),
+        error: "Failed to generate learning path recommendations",
       },
       { status: 500 }
     )
@@ -117,7 +104,7 @@ export async function POST(request: NextRequest) {
 /**
  * Extract top trending skills from recommendations
  */
-function extractTopTrends(recommendations: any[]): string[] {
+function extractTopTrends(recommendations: LearningPathRecommendation[]): string[] {
   const skillFreq = new Map<string, number>()
 
   for (const rec of recommendations) {

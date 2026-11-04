@@ -7,16 +7,20 @@ import {
   createStatusHistory,
 } from "@/lib/db"
 import { ApplicationStatus } from "@/types"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 /**
  * API Route: Applications CRUD
  * GET    /api/applications?userId=<id>
  * POST   /api/applications (body: { userId, company_name, job_title, ... })
  * PATCH  /api/applications (body: { id, userId, current_status, ... })
- * DELETE /api/applications?id=<id>
+ * DELETE /api/applications?id=<id>&userId=<userId>
  */
 
 export async function GET(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 120, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
@@ -37,13 +41,16 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Applications GET Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to fetch applications" },
       { status: 500 }
     )
   }
 }
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 30, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const {
@@ -68,18 +75,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Sanitize input lengths
+    const safeCompany = String(company_name).trim().substring(0, 100)
+    const safeTitle = String(job_title).trim().substring(0, 150)
+    const safeLocation = location ? String(location).trim().substring(0, 100) : null
+    const safeDescription = description ? String(description).substring(0, 5000) : null
+
     const newApp = await createApplication({
       user_id: userId,
-      company_name,
-      job_title,
+      company_name: safeCompany,
+      job_title: safeTitle,
       current_status,
-      location: location || null,
+      location: safeLocation,
       salary_min: salary_min ? Number(salary_min) : null,
       salary_max: salary_max ? Number(salary_max) : null,
-      job_url: job_url || null,
-      description: description || null,
-      source_site,
-      easy_apply,
+      job_url: job_url ? String(job_url).substring(0, 500) : null,
+      description: safeDescription,
+      source_site: String(source_site).substring(0, 50),
+      easy_apply: Boolean(easy_apply),
       applied_date,
       last_update: new Date().toISOString(),
       days_in_stage: 0,
@@ -112,13 +125,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Applications POST Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to create application" },
       { status: 500 }
     )
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 60, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const body = await request.json()
     const { id, userId, current_status, notes, ...updates } = body
@@ -140,12 +156,13 @@ export async function PATCH(request: NextRequest) {
       payload.days_in_stage = 0
     }
 
-    const updated = await updateApplication(id, payload)
+    // Verify ownership via userId if provided to prevent IDOR
+    const updated = await updateApplication(id, payload, userId || undefined)
 
     if (!updated) {
       return NextResponse.json(
-        { error: "Failed to update application" },
-        { status: 500 }
+        { error: "Application not found or unauthorized to update" },
+        { status: 404 }
       )
     }
 
@@ -170,16 +187,20 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     console.error("Applications PATCH Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to update application" },
       { status: 500 }
     )
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 30, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const id = searchParams.get("id")
+    const userId = searchParams.get("userId")
 
     if (!id) {
       return NextResponse.json(
@@ -188,12 +209,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const ok = await deleteApplication(id)
+    // Enforce ownership check via userId if present
+    const ok = await deleteApplication(id, userId || undefined)
     return NextResponse.json({ success: ok })
   } catch (error) {
     console.error("Applications DELETE Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to delete application" },
       { status: 500 }
     )
   }

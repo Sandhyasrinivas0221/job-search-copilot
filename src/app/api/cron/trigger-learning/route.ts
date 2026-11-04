@@ -1,31 +1,20 @@
-/**
- * Manual Trigger Endpoint: Generate Learning Plan
- *
- * Allows manual triggering of learning plan generation for a specific user
- * TEST DATA: Useful for testing without waiting for scheduled cron jobs (COMMENTED OUT FOR PRODUCTION)
- *
- * Endpoint: POST /api/cron/trigger-learning?userId=<id>
- *
- * Query Parameters:
- * - userId (required): User ID to generate learning plan for
- *
- * Returns:
- * - Tasks created, skills detected, and detailed task information
- */
-
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { LearningPlannerAgent } from "@/agents/learning-planner-agent"
 import { getTrendingSkills } from "@/lib/db"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 15, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
 
-    if (!userId) {
+    if (!userId || !/^[a-zA-Z0-9_-]{1,64}$/.test(userId)) {
       return NextResponse.json(
-        { error: "Missing userId parameter" },
+        { error: "Missing or invalid userId parameter" },
         { status: 400 }
       )
     }
@@ -87,7 +76,7 @@ export async function POST(request: NextRequest) {
         priority: task.priority,
         estimatedHours: task.estimated_hours,
         dueDate: task.due_date,
-        resources: task.resources ? task.resources.slice(0, 3) : [], // Show first 3 resources
+        resources: task.resources ? task.resources.slice(0, 3) : [],
       })),
     })
   } catch (error) {
@@ -95,7 +84,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to generate learning plan",
-        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     )

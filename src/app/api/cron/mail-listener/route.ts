@@ -10,19 +10,17 @@ import { supabaseAdmin } from "@/lib/supabase"
 import { MailAgent } from "@/agents/mail-agent"
 import { fetchGmailEmails, getValidGmailAccessToken } from "@/lib/gmail-fetcher"
 import { getUser } from "@/lib/db"
+import { verifyCronAuthorization } from "@/lib/auth-guard"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
-  // Check authorization if CRON_SECRET is configured
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const authHeader = request.headers.get("authorization")
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      console.warn("[cron/mail-listener] Request blocked: invalid or missing CRON_SECRET")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  }
+  const authCheck = verifyCronAuthorization(request)
+  if (!authCheck.authorized) return authCheck.response!
+
+  const rateLimitResponse = checkRateLimit(request, { limit: 20, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
 
   try {
     console.log("[cron/mail-listener] Starting scheduled mail listener check...")
