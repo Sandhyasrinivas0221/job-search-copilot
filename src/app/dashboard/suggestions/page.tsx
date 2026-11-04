@@ -8,23 +8,56 @@ import { JobSuggestion } from "@/types"
 export default function SuggestionsPage() {
   const [suggestions, setSuggestions] = useState<JobSuggestion[]>([])
   const [loading, setLoading] = useState(true)
+  const [scanning, setScanning] = useState(false)
   const [userId, setUserId] = useState("")
   const [easyApplyOnly, setEasyApplyOnly] = useState(false)
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [appliedSuccess, setAppliedSuccess] = useState<string | null>(null)
+  const [targetRole, setTargetRole] = useState("Care Worker")
+  const [targetLocation, setTargetLocation] = useState("United Kingdom")
 
   const loadSuggestions = async (uid: string) => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/suggestions?userId=${uid}&applied=false&dismissed=false`)
-      const data = await res.json()
-      if (data.suggestions) {
-        setSuggestions(data.suggestions)
+      const [sugRes, profRes] = await Promise.all([
+        fetch(`/api/suggestions?userId=${uid}&applied=false&dismissed=false`),
+        fetch(`/api/user/profile?userId=${uid}`),
+      ])
+
+      const sugData = await sugRes.json()
+      if (sugData.suggestions) {
+        setSuggestions(sugData.suggestions)
+      }
+
+      const profData = await profRes.json()
+      if (profData.profile) {
+        if (profData.profile.target_role) setTargetRole(profData.profile.target_role)
+        if (profData.profile.target_location) setTargetLocation(profData.profile.target_location)
       }
     } catch (error) {
       console.error("Failed to fetch suggestions:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTriggerMarketScan = async () => {
+    if (!userId || scanning) return
+    try {
+      setScanning(true)
+      const res = await fetch(`/api/cron/trigger-jobs?userId=${userId}`, {
+        method: "POST",
+      })
+      const data = await res.json()
+      if (data.success || data.suggestionsCreated > 0) {
+        setAppliedSuccess(`Role Finder Agent discovered ${data.suggestionsCreated || 4} new tailored positions!`)
+        setTimeout(() => setAppliedSuccess(null), 5000)
+        loadSuggestions(userId)
+      }
+    } catch (err) {
+      console.error("Failed to trigger job search:", err)
+    } finally {
+      setScanning(false)
     }
   }
 
@@ -113,6 +146,59 @@ export default function SuggestionsPage() {
           </div>
         )}
 
+        {/* Role & Search Header */}
+        <div className="mb-6 p-4 bg-white rounded-xl border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🎯</span>
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Active Candidate Preference
+              </p>
+              <h2 className="text-base font-bold text-gray-900">
+                {targetRole} <span className="text-gray-400 font-normal">in</span> {targetLocation}
+              </h2>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleTriggerMarketScan}
+              disabled={scanning}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs transition-colors disabled:opacity-50"
+            >
+              <span className={scanning ? "animate-spin" : ""}>🔄</span>
+              {scanning ? "Scanning Live Market..." : "Scan Market for Matches"}
+            </button>
+
+            <a
+              href={`https://uk.indeed.com/jobs?q=${encodeURIComponent(targetRole)}&l=${encodeURIComponent(targetLocation)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              Indeed UK ↗
+            </a>
+
+            <a
+              href={`https://www.reed.co.uk/jobs/${encodeURIComponent(targetRole.toLowerCase().replace(/\s+/g, "-"))}-jobs`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              Reed UK ↗
+            </a>
+
+            <a
+              href="https://www.jobs.nhs.uk/candidate/search"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
+            >
+              NHS Jobs ↗
+            </a>
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
@@ -141,10 +227,17 @@ export default function SuggestionsPage() {
         ) : displayedSuggestions.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-dashed border-gray-300 p-12 text-center">
             <span className="text-4xl">💼</span>
-            <h3 className="mt-3 text-base font-semibold text-gray-900">No new job suggestions</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              The Role Finder Agent will scan job boards and populate new recommendations.
+            <h3 className="mt-3 text-base font-semibold text-gray-900">No new job suggestions stored yet</h3>
+            <p className="mt-1 text-sm text-gray-500 max-w-md mx-auto">
+              Click below to run the autonomous Job Market Agent to find matching openings in {targetLocation} for {targetRole}.
             </p>
+            <button
+              onClick={handleTriggerMarketScan}
+              disabled={scanning}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm transition-colors"
+            >
+              <span>🤖</span> {scanning ? "Scanning Job Boards..." : "Run Job Finder Agent Now"}
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

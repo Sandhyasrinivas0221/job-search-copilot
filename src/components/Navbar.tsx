@@ -9,6 +9,8 @@ export function Navbar() {
   const pathname = usePathname()
   const [session, setSession] = useState<ClientUserSession | null>(null)
   const [connectedGmail, setConnectedGmail] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
 
   useEffect(() => {
     getClientSession().then((s) => {
@@ -28,6 +30,37 @@ export function Navbar() {
       }
     })
   }, [])
+
+  const handleSyncInbox = async () => {
+    if (!session?.userId || syncing) return
+    try {
+      setSyncing(true)
+      setSyncMessage("Syncing...")
+      const res = await fetch(`/api/agents/sync-inbox?userId=${session.userId}`, {
+        method: "POST",
+      })
+      const data = await res.json()
+      if (data.success) {
+        const count = data.parsedApplicationsCount || 0
+        setSyncMessage(`Synced ${count} jobs!`)
+        setTimeout(() => {
+          setSyncMessage(null)
+          // Refresh window if on applications or pipeline page
+          if (pathname.includes("/dashboard/applications") || pathname.includes("/dashboard/pipeline") || pathname === "/") {
+            window.location.reload()
+          }
+        }, 2000)
+      } else {
+        setSyncMessage(data.message || "No new emails")
+        setTimeout(() => setSyncMessage(null), 3000)
+      }
+    } catch {
+      setSyncMessage("Sync failed")
+      setTimeout(() => setSyncMessage(null), 3000)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const navItems = [
     { label: "Overview", href: "/" },
@@ -77,14 +110,26 @@ export function Navbar() {
 
           <div className="flex items-center gap-3">
             {connectedGmail && (
-              <Link
-                href="/dashboard/settings?tab=email"
-                className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                title="Gmail connected and monitored"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                {connectedGmail}
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/dashboard/settings?tab=email"
+                  className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                  title="Gmail connected and monitored"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                  {connectedGmail}
+                </Link>
+
+                <button
+                  onClick={handleSyncInbox}
+                  disabled={syncing}
+                  className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50"
+                  title="Sync Gmail inbox for new job applications and status updates"
+                >
+                  <span className={`mr-1.5 ${syncing ? "animate-spin" : ""}`}>🔄</span>
+                  {syncMessage || (syncing ? "Syncing..." : "Sync Inbox")}
+                </button>
+              </div>
             )}
 
             {session && (

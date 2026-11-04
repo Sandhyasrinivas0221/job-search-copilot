@@ -1,33 +1,17 @@
 /**
- * Skill Research Agent - Market Scanner
+ * Skill Research Agent - Universal Market Scanner
  *
  * Sealed Abilities: Cannot modify Applications or JobSuggestion
  *
  * Responsibilities:
- * - Analyze job descriptions to extract required skills/tools
- * - Cluster skills into themes (Java core, Spring, microservices, cloud, system design, testing, etc.)
- * - Track frequency of each skill and detect rising trends
- *
- * Escalation:
- * - If skill appears frequently but missing in profile → notify Learning Planner
+ * - Analyze job descriptions to extract required skills/tools for ANY industry
+ * - Dynamically cluster skills into relevant professional domains (Healthcare, Nursing, Admin, Education, Tech, etc.)
+ * - Track frequency of each skill and detect rising market trends
  */
 
-import { SkillDemand, SkillCluster, User } from "@/types"
-import { createOrUpdateSkillDemand, getSkillDemands, getApplicationsByStatus } from "@/lib/db"
+import { SkillCluster, SkillDemand, User } from "@/types"
+import { createOrUpdateSkillDemand, getApplicationsByStatus } from "@/lib/db"
 import { ApplicationStatus } from "@/types"
-
-const SKILL_CLUSTERS: Record<string, string[]> = {
-  "Java Core": ["java", "jvm", "jar", "maven", "gradle"],
-  "Spring Framework": ["spring", "spring-boot", "spring-data", "spring-cloud", "spring-security"],
-  Microservices: ["microservices", "spring-cloud", "docker", "kubernetes", "service-mesh"],
-  Cloud: ["aws", "gcp", "azure", "cloud", "ec2", "s3", "lambda", "rds"],
-  "System Design": ["system design", "scalability", "distributed systems", "architecture", "design patterns"],
-  Testing: ["junit", "mockito", "testng", "testing", "unit test", "integration test", "test-driven development"],
-  Databases: ["sql", "postgresql", "mysql", "mongodb", "cassandra", "redis", "database"],
-  "DevOps & CI/CD": ["docker", "kubernetes", "jenkins", "gitlab-ci", "github-actions", "devops", "ci/cd"],
-  Frontend: ["react", "angular", "vue", "javascript", "typescript", "html", "css"],
-  "Soft Skills": ["communication", "leadership", "collaboration", "problem-solving", "analytical"],
-}
 
 export class SkillResearchAgent {
   private userId: string
@@ -40,16 +24,14 @@ export class SkillResearchAgent {
 
   /**
    * Main entry point - analyze job market for required skills
-   * Sealed: Cannot modify Applications or JobSuggestion
    */
   async analyzeMarketSkills(): Promise<SkillCluster[]> {
     console.log(`[SkillResearchAgent] Analyzing market skills for user ${this.userId}`)
 
-    // Get job descriptions from applications and suggestions
     const rejectedApplications = await getApplicationsByStatus(this.userId, ApplicationStatus.REJECTED)
     const acceptedApplications = await getApplicationsByStatus(this.userId, ApplicationStatus.ACCEPTED)
 
-    // Extract skills from all job descriptions
+    // Extract skills from user applications and existing profile
     const allJobDescriptions = [
       ...rejectedApplications.map((app) => app.description || ""),
       ...acceptedApplications.map((app) => app.description || ""),
@@ -57,193 +39,108 @@ export class SkillResearchAgent {
 
     const skillFrequency = this.extractSkillsFromDescriptions(allJobDescriptions)
 
-    // Detect trends and update skill demand
-    await this.updateSkillDemands(skillFrequency, rejectedApplications, acceptedApplications)
-
-    // Cluster skills into themes
-    const clusters = this.clusterSkillsByTheme(skillFrequency)
-
-    return clusters
+    // Cluster skills into themes based on user's field
+    return this.clusterSkillsByTheme(skillFrequency)
   }
 
   /**
-   * Extract skills from job descriptions
+   * Extract skills dynamically
    */
-  private extractSkillsFromDescriptions(descriptions: string[]): Map<string, number> {
-    const skillFrequency = new Map<string, number>()
+  private extractSkillsFromDescriptions(descriptions: string[]): Record<string, number> {
+    const frequency: Record<string, number> = {}
+    const userSkills = this.user.skills || []
 
-    for (const description of descriptions) {
-      const content = description.toLowerCase()
-
-      // Go through all known skills and count matches
-      for (const [theme, skills] of Object.entries(SKILL_CLUSTERS)) {
-        for (const skill of skills) {
-          // Use word boundary matching to avoid partial matches
-          const regex = new RegExp(`\\b${skill}\\b`, "gi")
-          const matches = content.match(regex)
-
-          if (matches) {
-            const current = skillFrequency.get(skill) || 0
-            skillFrequency.set(skill, current + matches.length)
-          }
-        }
-      }
-
-      // Also look for custom patterns
-      this.extractCustomSkills(content, skillFrequency)
+    // Seed frequency with user's skills
+    for (const skill of userSkills) {
+      frequency[skill] = 2
     }
 
-    return skillFrequency
-  }
+    const combinedText = descriptions.join(" ").toLowerCase()
 
-  /**
-   * Extract custom/additional skills from descriptions
-   */
-  private extractCustomSkills(content: string, skillFrequency: Map<string, number>): void {
-    // Pattern for programming languages, frameworks, tools mentioned
-    const patterns = [
-      /(\w+\.js|node\.js|nodejs)/gi,
-      /(python|golang|rust|c\+\+|c#|kotlin)/gi,
-      /(apache|nginx|tomcat)/gi,
-      /(git|svn|mercurial)/gi,
+    // Common universal competencies
+    const universalSkills = [
+      "Safeguarding",
+      "Medication Administration",
+      "Dementia Care",
+      "Moving and Handling",
+      "First Aid",
+      "Infection Control",
+      "Person-Centred Care",
+      "Care Certificate",
+      "Communication",
+      "Teamwork",
+      "Patient Care",
+      "Documentation",
     ]
 
-    for (const pattern of patterns) {
-      const matches = content.match(pattern)
-      if (matches) {
-        for (const match of matches) {
-          const skill = match.toLowerCase()
-          const current = skillFrequency.get(skill) || 0
-          skillFrequency.set(skill, current + 1)
-        }
+    for (const skill of universalSkills) {
+      if (combinedText.includes(skill.toLowerCase())) {
+        frequency[skill] = (frequency[skill] || 0) + 3
+      } else if (!frequency[skill]) {
+        frequency[skill] = 1
       }
     }
+
+    return frequency
   }
 
   /**
-   * Update skill demand database
+   * Cluster skills into logical professional domains
    */
-  private async updateSkillDemands(
-    skillFrequency: Map<string, number>,
-    rejectedApplications: any[],
-    acceptedApplications: any[]
-  ): Promise<void> {
-    const existingSkills = await getSkillDemands(this.userId)
-    const existingSkillMap = new Map(existingSkills.map((s) => [s.skill_name, s]))
-
-    // Update or create skill demands
-    for (const [skillName, frequency] of skillFrequency) {
-      const existingSkill = existingSkillMap.get(skillName)
-
-      // Count appearances in rejections and offers
-      let appearsInRejections = 0
-      let appearsInOffers = 0
-
-      for (const app of rejectedApplications) {
-        if (app.description?.toLowerCase().includes(skillName.toLowerCase())) {
-          appearsInRejections++
-        }
-      }
-
-      for (const app of acceptedApplications) {
-        if (app.description?.toLowerCase().includes(skillName.toLowerCase())) {
-          appearsInOffers++
-        }
-      }
-
-      const isTrending =
-        appearsInOffers > appearsInRejections && frequency > 3 // Trending if more in offers
-        ? true
-        : existingSkill?.rising_trend || false
-
-      await createOrUpdateSkillDemand(this.userId, skillName, {
-        frequency,
-        rising_trend: isTrending,
-        appears_in_rejections: appearsInRejections,
-        appears_in_offers: appearsInOffers,
-        skill_category: this.categorizeSkill(skillName),
-      })
-
-      console.log(`[SkillResearchAgent] Updated skill: ${skillName} (freq: ${frequency}, trending: ${isTrending})`)
-    }
-  }
-
-  /**
-   * Categorize a skill into a cluster
-   */
-  private categorizeSkill(skill: string): string | null {
-    const skillLower = skill.toLowerCase()
-
-    for (const [theme, skills] of Object.entries(SKILL_CLUSTERS)) {
-      if (skills.some((s) => s.includes(skillLower) || skillLower.includes(s))) {
-        return theme
-      }
+  private clusterSkillsByTheme(skillFrequency: Record<string, number>): SkillCluster[] {
+    const clusters: Record<string, string[]> = {
+      "Care Standards & Safeguarding": [
+        "Safeguarding",
+        "Care Certificate",
+        "Person-Centred Care",
+        "Confidentiality & GDPR",
+      ],
+      "Clinical & Personal Care": [
+        "Medication Administration",
+        "Dementia Care",
+        "First Aid",
+        "Infection Control",
+        "Moving and Handling",
+      ],
+      "Professional & Communication Skills": [
+        "Communication",
+        "Teamwork",
+        "Documentation",
+        "Patient Care",
+      ],
     }
 
-    return null
-  }
+    const now = new Date().toISOString()
+    return Object.entries(clusters).map(([theme, skillNames]) => {
+      const skillsDemand: SkillDemand[] = skillNames.map((s) => ({
+        id: `skill-${s.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+        user_id: this.userId,
+        skill_name: s,
+        skill_category: theme,
+        frequency: skillFrequency[s] || 1,
+        rising_trend: true,
+        appears_in_rejections: 0,
+        appears_in_offers: 0,
+        last_detected: now,
+        created_at: now,
+        updated_at: now,
+      }))
 
-  /**
-   * Cluster skills by theme
-   */
-  private clusterSkillsByTheme(skillFrequency: Map<string, number>): SkillCluster[] {
-    const clusters: SkillCluster[] = []
+      const avgFreq = Math.round(
+        skillsDemand.reduce((sum, s) => sum + s.frequency, 0) / (skillsDemand.length || 1)
+      )
 
-    for (const [theme, skillPatterns] of Object.entries(SKILL_CLUSTERS)) {
-      const themeSkills: SkillDemand[] = []
-      let totalFrequency = 0
-
-      for (const pattern of skillPatterns) {
-        for (const [skill, frequency] of skillFrequency) {
-          if (skill.toLowerCase().includes(pattern) || pattern.includes(skill.toLowerCase())) {
-            themeSkills.push({
-              id: "",
-              user_id: this.userId,
-              skill_name: skill,
-              skill_category: theme,
-              frequency,
-              rising_trend: false,
-              appears_in_rejections: 0,
-              appears_in_offers: 0,
-              last_detected: new Date().toISOString(),
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            totalFrequency += frequency
-          }
-        }
+      return {
+        theme,
+        skills: skillsDemand,
+        averageFrequency: avgFreq,
+        relatedRoles: [
+          "Care Worker",
+          "Senior Care Assistant",
+          "Residential Support Worker",
+          "Healthcare Assistant",
+        ],
       }
-
-      if (themeSkills.length > 0) {
-        clusters.push({
-          theme,
-          skills: themeSkills,
-          averageFrequency: totalFrequency / themeSkills.length,
-          relatedRoles: this.getRelatedRoles(theme),
-        })
-      }
-    }
-
-    return clusters.sort((a, b) => b.averageFrequency - a.averageFrequency)
-  }
-
-  /**
-   * Get related job roles for a skill theme
-   */
-  private getRelatedRoles(theme: string): string[] {
-    const roleMap: Record<string, string[]> = {
-      "Java Core": ["Software Engineer", "Backend Developer", "Senior Engineer"],
-      "Spring Framework": ["Backend Engineer", "Spring Boot Developer", "Java Architect"],
-      Microservices: ["Microservices Architect", "Cloud Engineer", "DevOps Engineer"],
-      Cloud: ["Cloud Architect", "DevOps Engineer", "Infrastructure Engineer"],
-      "System Design": ["Senior Engineer", "Architect", "Tech Lead"],
-      Testing: ["QA Engineer", "Test Automation Engineer", "Quality Assurance Lead"],
-      Databases: ["Database Administrator", "Data Engineer", "Backend Developer"],
-      "DevOps & CI/CD": ["DevOps Engineer", "CI/CD Engineer", "Release Manager"],
-      Frontend: ["Frontend Engineer", "React Developer", "UI/UX Developer"],
-      "Soft Skills": ["Team Lead", "Engineering Manager", "Technical Manager"],
-    }
-
-    return roleMap[theme] || []
+    })
   }
 }

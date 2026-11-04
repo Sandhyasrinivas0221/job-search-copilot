@@ -4,32 +4,72 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { getClientSession } from "@/lib/client-auth"
 import { DashboardMetrics } from "@/types"
+import { ResumeUploadModal } from "@/components/ResumeUploadModal"
+import { UserCareerProfile } from "@/app/api/user/profile/route"
 
 export default function Home() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
+  const [profile, setProfile] = useState<UserCareerProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [userSession, setUserSession] = useState<{ userId: string; isDemo: boolean } | null>(null)
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false)
+  const [syncingInbox, setSyncingInbox] = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null)
+
+  const loadData = async (uid: string) => {
+    try {
+      const [metricsRes, profileRes] = await Promise.all([
+        fetch(`/api/metrics?userId=${uid}`),
+        fetch(`/api/user/profile?userId=${uid}`),
+      ])
+
+      const metricsData = await metricsRes.json()
+      if (metricsData.metrics) {
+        setMetrics(metricsData.metrics)
+      }
+
+      const profileData = await profileRes.json()
+      if (profileData.profile) {
+        setProfile(profileData.profile)
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const session = await getClientSession()
-        setUserSession({ userId: session.userId, isDemo: session.isDemo })
-
-        const res = await fetch(`/api/metrics?userId=${session.userId}`)
-        const data = await res.json()
-        if (data.metrics) {
-          setMetrics(data.metrics)
-        }
-      } catch (error) {
-        console.error("Failed to fetch metrics:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchMetrics()
+    getClientSession().then((session) => {
+      setUserSession({ userId: session.userId, isDemo: session.isDemo })
+      loadData(session.userId)
+    })
   }, [])
+
+  const handleSyncInbox = async () => {
+    if (!userSession?.userId || syncingInbox) return
+    try {
+      setSyncingInbox(true)
+      setSyncFeedback("Connecting to Gmail to parse latest job applications...")
+      const res = await fetch(`/api/agents/sync-inbox?userId=${userSession.userId}`, {
+        method: "POST",
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSyncFeedback(`Successfully synced! Processed ${data.parsedApplicationsCount || 0} applications.`)
+        loadData(userSession.userId)
+        setTimeout(() => setSyncFeedback(null), 4000)
+      } else {
+        setSyncFeedback(data.message || "No new application emails found.")
+        setTimeout(() => setSyncFeedback(null), 4000)
+      }
+    } catch {
+      setSyncFeedback("Sync failed. Check Gmail connection.")
+      setTimeout(() => setSyncFeedback(null), 4000)
+    } finally {
+      setSyncingInbox(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -76,6 +116,86 @@ export default function Home() {
           </div>
         ) : (
           <>
+            {/* Candidate & Institution Profile Banner */}
+            <div className="mb-8 p-6 bg-white rounded-2xl border border-indigo-100 shadow-sm">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
+                      Target Role
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                      {profile?.industry_field || "Healthcare & Social Care"}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                      📍 {profile?.target_location || "United Kingdom"}
+                    </span>
+                  </div>
+
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <span>{profile?.target_role || "Care Worker"}</span>
+                    {profile?.full_name && (
+                      <span className="text-sm font-normal text-gray-500">
+                        • {profile.full_name}
+                      </span>
+                    )}
+                  </h2>
+
+                  {/* Skills tags */}
+                  <div className="mt-3 flex flex-wrap gap-1.5 items-center">
+                    <span className="text-xs font-semibold text-gray-400 mr-1">Skills:</span>
+                    {(profile?.skills || []).slice(0, 8).map((sk) => (
+                      <span
+                        key={sk}
+                        className="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700"
+                      >
+                        {sk}
+                      </span>
+                    ))}
+                    {(profile?.skills || []).length > 8 && (
+                      <span className="text-xs text-gray-400 font-medium">
+                        +{profile!.skills.length - 8} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    onClick={() => setIsResumeModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs transition-colors"
+                  >
+                    <span>📄</span> Upload Resume / CV
+                  </button>
+
+                  <button
+                    onClick={handleSyncInbox}
+                    disabled={syncingInbox}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                  >
+                    <span className={syncingInbox ? "animate-spin" : ""}>🔄</span>
+                    {syncingInbox ? "Syncing..." : "Sync Indeed Applications"}
+                  </button>
+
+                  <Link
+                    href="/dashboard/settings?tab=profile"
+                    className="inline-flex items-center px-3 py-2 rounded-xl text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors"
+                  >
+                    Settings ⚙️
+                  </Link>
+                </div>
+              </div>
+
+              {syncFeedback && (
+                <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs rounded-xl font-medium flex items-center justify-between">
+                  <span>ℹ️ {syncFeedback}</span>
+                  <Link href="/dashboard/applications" className="underline font-bold hover:text-indigo-950">
+                    View in Applications →
+                  </Link>
+                </div>
+              )}
+            </div>
+
             {/* Metrics Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               <MetricsCard
@@ -157,6 +277,15 @@ export default function Home() {
               </div>
             </div>
           </>
+        )}
+
+        {userSession && (
+          <ResumeUploadModal
+            userId={userSession.userId}
+            isOpen={isResumeModalOpen}
+            onClose={() => setIsResumeModalOpen(false)}
+            onSuccess={() => loadData(userSession.userId)}
+          />
         )}
       </main>
     </div>

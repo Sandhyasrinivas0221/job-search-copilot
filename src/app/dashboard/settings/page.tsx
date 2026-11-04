@@ -5,6 +5,8 @@ import Link from "next/link"
 import { createClient } from "@supabase/supabase-js"
 import { EmailConfig } from "@/components/EmailConfig"
 import { EmailCredentials } from "@/types"
+import { ResumeUploadModal } from "@/components/ResumeUploadModal"
+import { UserCareerProfile } from "@/app/api/user/profile/route"
 
 interface Agent {
   id: string
@@ -98,8 +100,24 @@ export default function SettingsPage() {
   const [agents, setAgents] = useState<Agent[]>(AGENTS)
   const [loading, setLoading] = useState(false)
   const [emailCredentials, setEmailCredentials] = useState<EmailCredentials[]>([])
-  const [activeTab, setActiveTab] = useState<"agents" | "email">("agents")
+  const [activeTab, setActiveTab] = useState<"profile" | "agents" | "email">("profile")
   const [userId, setUserId] = useState("")
+  const [careerProfile, setCareerProfile] = useState<UserCareerProfile | null>(null)
+  const [newSkill, setNewSkill] = useState("")
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false)
+
+  const fetchCareerProfile = async (uid: string) => {
+    try {
+      const res = await fetch(`/api/user/profile?userId=${uid}`)
+      const data = await res.json()
+      if (data.success && data.profile) {
+        setCareerProfile(data.profile)
+      }
+    } catch (err) {
+      console.error("Failed to fetch profile:", err)
+    }
+  }
 
   useEffect(() => {
     const initializeUser = async () => {
@@ -120,6 +138,7 @@ export default function SettingsPage() {
 
         setUserId(uid)
         fetchEmailCredentials(uid)
+        fetchCareerProfile(uid)
 
         // Read URL query parameters
         const urlParams = new URLSearchParams(window.location.search)
@@ -132,6 +151,10 @@ export default function SettingsPage() {
           setTimeout(() => {
             fetchEmailCredentials(uid)
           }, 300)
+        } else if (tab === "agents") {
+          setActiveTab("agents")
+        } else if (tab === "profile") {
+          setActiveTab("profile")
         }
 
         if (error) {
@@ -145,6 +168,54 @@ export default function SettingsPage() {
 
     initializeUser()
   }, [])
+
+  const handleSaveProfile = async () => {
+    if (!careerProfile || !userId) return
+    try {
+      setLoading(true)
+      const res = await fetch("/api/user/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          full_name: careerProfile.full_name,
+          target_role: careerProfile.target_role,
+          target_location: careerProfile.target_location,
+          industry_field: careerProfile.industry_field,
+          institution_name: careerProfile.institution_name,
+          skills: careerProfile.skills,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setProfileSaved(true)
+        setTimeout(() => setProfileSaved(false), 3000)
+      }
+    } catch (err) {
+      console.error("Failed to save profile:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAddSkill = () => {
+    if (!newSkill.trim() || !careerProfile) return
+    if (!careerProfile.skills.includes(newSkill.trim())) {
+      setCareerProfile({
+        ...careerProfile,
+        skills: [...careerProfile.skills, newSkill.trim()],
+      })
+    }
+    setNewSkill("")
+  }
+
+  const handleRemoveSkill = (skillToRemove: string) => {
+    if (!careerProfile) return
+    setCareerProfile({
+      ...careerProfile,
+      skills: careerProfile.skills.filter((s) => s !== skillToRemove),
+    })
+  }
 
   const fetchEmailCredentials = async (uid: string) => {
     try {
@@ -271,20 +342,20 @@ export default function SettingsPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-4 border-b border-gray-200 mb-8">
+        <div className="flex gap-4 border-b border-gray-200 mb-8 overflow-x-auto">
           <button
-            onClick={() => setActiveTab("agents")}
-            className={`px-4 py-2.5 font-semibold text-sm border-b-2 transition-colors ${
-              activeTab === "agents"
+            onClick={() => setActiveTab("profile")}
+            className={`px-4 py-2.5 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === "profile"
                 ? "border-indigo-600 text-indigo-600"
                 : "border-transparent text-gray-500 hover:text-gray-900"
             }`}
           >
-            Agent Workflows (6)
+            Candidate & Institution Profile 🎯
           </button>
           <button
             onClick={() => setActiveTab("email")}
-            className={`px-4 py-2.5 font-semibold text-sm border-b-2 transition-colors flex items-center gap-2 ${
+            className={`px-4 py-2.5 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${
               activeTab === "email"
                 ? "border-indigo-600 text-indigo-600"
                 : "border-transparent text-gray-500 hover:text-gray-900"
@@ -295,7 +366,179 @@ export default function SettingsPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab("agents")}
+            className={`px-4 py-2.5 font-semibold text-sm border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === "agents"
+                ? "border-indigo-600 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-900"
+            }`}
+          >
+            Agent Workflows (6)
+          </button>
         </div>
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && careerProfile && (
+          <div className="bg-white rounded-2xl shadow-xs border border-gray-200 p-6 sm:p-8 space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Career & Institution Profile</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Universal configuration powering all 6 background AI agents (Care, Nursing, Education, Tech)
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsResumeModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+              >
+                <span>📄</span> Upload & Parse Resume
+              </button>
+            </div>
+
+            {profileSaved && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl font-semibold">
+                ✓ Career profile saved successfully! Agents are now updated.
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Candidate Full Name
+                </label>
+                <input
+                  type="text"
+                  value={careerProfile.full_name || ""}
+                  onChange={(e) =>
+                    setCareerProfile({ ...careerProfile, full_name: e.target.value })
+                  }
+                  placeholder="e.g. Ramesh Ruthala"
+                  className="w-full px-3.5 py-2.5 text-xs text-gray-900 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Institution or Agency Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={careerProfile.institution_name || ""}
+                  onChange={(e) =>
+                    setCareerProfile({ ...careerProfile, institution_name: e.target.value })
+                  }
+                  placeholder="e.g. Care Home / NHS Trust / Recruitment Agency"
+                  className="w-full px-3.5 py-2.5 text-xs text-gray-900 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Target Role / Job Title
+                </label>
+                <input
+                  type="text"
+                  value={careerProfile.target_role}
+                  onChange={(e) =>
+                    setCareerProfile({ ...careerProfile, target_role: e.target.value })
+                  }
+                  placeholder="e.g. Care Worker, Senior Care Assistant, Registered Nurse"
+                  className="w-full px-3.5 py-2.5 text-xs text-gray-900 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Target Location / Country
+                </label>
+                <input
+                  type="text"
+                  value={careerProfile.target_location}
+                  onChange={(e) =>
+                    setCareerProfile({ ...careerProfile, target_location: e.target.value })
+                  }
+                  placeholder="e.g. United Kingdom, Scotland, London"
+                  className="w-full px-3.5 py-2.5 text-xs text-gray-900 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Industry Field / Domain
+                </label>
+                <select
+                  value={careerProfile.industry_field}
+                  onChange={(e) =>
+                    setCareerProfile({ ...careerProfile, industry_field: e.target.value })
+                  }
+                  className="w-full px-3.5 py-2.5 text-xs text-gray-900 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden bg-white"
+                >
+                  <option value="Healthcare & Social Care">Healthcare & Social Care (Care Worker, Assistant, Carer)</option>
+                  <option value="Nursing & Clinical Healthcare">Nursing & Clinical Healthcare (Registered Nurse, Staff Nurse)</option>
+                  <option value="Education & Teaching">Education & Teaching (Teaching Assistant, Teacher)</option>
+                  <option value="Administration & Customer Service">Administration & Office Support</option>
+                  <option value="Logistics, Warehousing & Driving">Logistics & Driving</option>
+                  <option value="Technology & Software Engineering">Technology & Software Engineering</option>
+                </select>
+              </div>
+
+              {/* Skills Editor */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-gray-700 mb-2">
+                  Key Skills & Qualifications ({careerProfile.skills.length})
+                </label>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {careerProfile.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200"
+                    >
+                      {skill}
+                      <button
+                        onClick={() => handleRemoveSkill(skill)}
+                        className="text-indigo-400 hover:text-red-600 transition-colors"
+                        title="Remove skill"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSkill())}
+                    placeholder="Add a new skill (e.g. Care Certificate, Safeguarding, First Aid)..."
+                    className="flex-1 px-3.5 py-2 text-xs border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSkill}
+                    className="px-4 py-2 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl transition-colors"
+                  >
+                    + Add Skill
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-6 border-t border-gray-100">
+              <button
+                onClick={handleSaveProfile}
+                disabled={loading}
+                className="px-6 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {loading ? "Saving..." : "Save Profile Settings"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Agents Tab */}
         {activeTab === "agents" && (
@@ -335,6 +578,15 @@ export default function SettingsPage() {
             onDelete={handleEmailDelete}
             loading={loading}
             userId={userId}
+          />
+        )}
+
+        {userId && (
+          <ResumeUploadModal
+            userId={userId}
+            isOpen={isResumeModalOpen}
+            onClose={() => setIsResumeModalOpen(false)}
+            onSuccess={() => fetchCareerProfile(userId)}
           />
         )}
       </main>
