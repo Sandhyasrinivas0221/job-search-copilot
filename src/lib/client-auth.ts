@@ -121,6 +121,14 @@ export async function getClientSession(): Promise<ClientUserSession> {
   }
 }
 
+export function getAuthRedirectUrl(): string {
+  if (typeof window !== "undefined" && window.location.origin) {
+    return `${window.location.origin}/auth/callback`
+  }
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://job-search-copilot-six.vercel.app"
+  return `${siteUrl.replace(/\/$/, "")}/auth/callback`
+}
+
 export async function signInWithEmail(
   email: string,
   password?: string
@@ -132,9 +140,10 @@ export async function signInWithEmail(
       if (error) return { success: false, error: error.message }
       return { success: true }
     } else {
+      const redirectTo = getAuthRedirectUrl()
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: redirectTo },
       })
       if (error) return { success: false, error: error.message }
       return { success: true }
@@ -150,10 +159,11 @@ export async function signUpWithEmail(
 ): Promise<{ success: boolean; needsEmailConfirmation?: boolean; error?: string }> {
   try {
     const supabase = getSupabaseBrowserClient()
+    const redirectTo = getAuthRedirectUrl()
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: redirectTo },
     })
     if (error) return { success: false, error: error.message }
 

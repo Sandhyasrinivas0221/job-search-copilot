@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getClientSession, signOutUser, ClientUserSession, getAuthHeaders } from "@/lib/client-auth"
+import { getClientSession, signOutUser, ClientUserSession, getAuthHeaders, getSupabaseBrowserClient } from "@/lib/client-auth"
 import { AuthModal } from "@/components/AuthModal"
 
 export function Navbar() {
@@ -13,25 +13,50 @@ export function Navbar() {
   const [syncing, setSyncing] = useState(false)
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [verifiedBanner, setVerifiedBanner] = useState(false)
 
   useEffect(() => {
-    getClientSession().then(async (s) => {
-      setSession(s)
-      if (s?.userId) {
-        const authHeaders = await getAuthHeaders()
-        fetch(`/api/email/credentials?userId=${s.userId}`, { headers: authHeaders })
-          .then((r) => r.json())
-          .then((data) => {
-            const gmail = data.credentials?.find(
-              (c: any) => c.provider === "gmail" && c.is_connected
-            )
-            if (gmail) {
-              setConnectedGmail(gmail.email_address)
-            }
-          })
-          .catch(() => {})
+    if (typeof window !== "undefined" && window.location.search.includes("verified=true")) {
+      setVerifiedBanner(true)
+      const timer = setTimeout(() => setVerifiedBanner(false), 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [])
+
+  useEffect(() => {
+    const refreshSession = () => {
+      getClientSession().then(async (s) => {
+        setSession(s)
+        if (s?.userId) {
+          const authHeaders = await getAuthHeaders()
+          fetch(`/api/email/credentials?userId=${s.userId}`, { headers: authHeaders })
+            .then((r) => r.json())
+            .then((data) => {
+              const gmail = data.credentials?.find(
+                (c: any) => c.provider === "gmail" && c.is_connected
+              )
+              if (gmail) {
+                setConnectedGmail(gmail.email_address)
+              }
+            })
+            .catch(() => {})
+        }
+      })
+    }
+
+    refreshSession()
+
+    try {
+      const supabase = getSupabaseBrowserClient()
+      const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+        refreshSession()
+      })
+      return () => {
+        authListener?.subscription.unsubscribe()
       }
-    })
+    } catch {
+      // Supabase credentials not set or browser offline
+    }
   }, [])
 
   const handleSyncInbox = async () => {
@@ -174,6 +199,20 @@ export function Navbar() {
           </div>
         </div>
       </div>
+
+      {verifiedBanner && (
+        <div className="bg-emerald-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-inner">
+          <span>✅</span>
+          <span>Your email has been verified! You are now logged into your workspace.</span>
+          <button
+            onClick={() => setVerifiedBanner(false)}
+            className="ml-3 text-emerald-200 hover:text-white font-bold"
+            aria-label="Dismiss banner"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <AuthModal
         isOpen={isAuthModalOpen}
