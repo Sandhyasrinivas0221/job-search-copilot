@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { authenticateRequest } from "@/lib/server-auth"
 
 // Fields that are safe to expose to the frontend
-const SAFE_CREDENTIAL_COLUMNS = "id, user_id, provider, email_address, is_connected, last_verified_at, created_at, updated_at"
+const SAFE_CREDENTIAL_COLUMNS =
+  "id, user_id, provider, email_address, is_connected, last_verified_at, created_at, updated_at"
 
 function sanitizeCredential(cred: any) {
   if (!cred) return null
@@ -22,17 +24,17 @@ export async function GET(request: NextRequest) {
   try {
     const userId = request.nextUrl.searchParams.get("userId")
     if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Missing userId" }, { status: 400 })
     }
+
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
 
     // Only select non-sensitive columns - never leak refresh tokens or passwords to client
     const { data: credentials, error } = await supabaseAdmin
       .from("email_credentials")
       .select(SAFE_CREDENTIAL_COLUMNS)
-      .eq("user_id", userId)
+      .eq("user_id", auth.userId!)
 
     if (error) throw error
 
@@ -42,10 +44,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error("Email credentials fetch error:", error)
-    return NextResponse.json(
-      { error: "Failed to fetch credentials" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to fetch credentials" }, { status: 500 })
   }
 }
 
@@ -68,15 +67,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
     if (!["gmail", "smtp"].includes(provider)) {
-      return NextResponse.json(
-        { error: "Provider must be 'gmail' or 'smtp'" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Provider must be 'gmail' or 'smtp'" }, { status: 400 })
     }
 
     const credentialData: any = {
-      user_id: userId,
+      user_id: auth.userId!,
       provider,
       email_address,
       is_connected: true,
@@ -113,10 +112,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Email credentials save error:", error)
-    return NextResponse.json(
-      { error: "Failed to save email configuration" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to save email configuration" }, { status: 500 })
   }
 }
 
@@ -133,16 +129,16 @@ export async function DELETE(request: NextRequest) {
     const provider = request.nextUrl.searchParams.get("provider")
 
     if (!userId || !provider) {
-      return NextResponse.json(
-        { error: "Missing userId or provider" },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Missing userId or provider" }, { status: 400 })
     }
+
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
 
     const { error } = await supabaseAdmin
       .from("email_credentials")
       .delete()
-      .eq("user_id", userId)
+      .eq("user_id", auth.userId!)
       .eq("provider", provider)
 
     if (error) throw error
@@ -153,9 +149,6 @@ export async function DELETE(request: NextRequest) {
     })
   } catch (error) {
     console.error("Email credentials delete error:", error)
-    return NextResponse.json(
-      { error: "Failed to delete credentials" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to delete credentials" }, { status: 500 })
   }
 }

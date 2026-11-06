@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { getClientSession } from "@/lib/client-auth"
+import { getClientSession, getAuthHeaders } from "@/lib/client-auth"
 import { JobSuggestion } from "@/types"
 
 export default function SuggestionsPage() {
@@ -19,9 +19,10 @@ export default function SuggestionsPage() {
   const loadSuggestions = async (uid: string) => {
     try {
       setLoading(true)
+      const authHeaders = await getAuthHeaders()
       const [sugRes, profRes] = await Promise.all([
-        fetch(`/api/suggestions?userId=${uid}&applied=false&dismissed=false`),
-        fetch(`/api/user/profile?userId=${uid}`),
+        fetch(`/api/suggestions?userId=${uid}&applied=false&dismissed=false`, { headers: authHeaders }),
+        fetch(`/api/user/profile?userId=${uid}`, { headers: authHeaders }),
       ])
 
       const sugData = await sugRes.json()
@@ -71,9 +72,13 @@ export default function SuggestionsPage() {
   const handleApplyToJob = async (job: JobSuggestion) => {
     try {
       setActionInProgress(job.id)
+      const authHeaders = await getAuthHeaders()
       const res = await fetch("/api/suggestions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           suggestion: job,
           userId,
@@ -96,10 +101,14 @@ export default function SuggestionsPage() {
   const handleDismiss = async (jobId: string) => {
     try {
       setSuggestions((prev) => prev.filter((s) => s.id !== jobId))
+      const authHeaders = await getAuthHeaders()
       await fetch("/api/suggestions", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: jobId, dismissed: true }),
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: jobId, userId, dismissed: true }),
       })
     } catch (err) {
       console.error("Failed to dismiss:", err)

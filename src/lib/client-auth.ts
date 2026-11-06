@@ -17,8 +17,6 @@ export interface ClientUserSession {
 
 /**
  * Generate or retrieve an isolated browser UUID for guest visitors.
- * Ensures User A (e.g. Care Worker) and User B (e.g. Software Engineer)
- * browsing simultaneously have completely isolated workspaces without collision.
  */
 export function getOrCreateGuestUserId(): string {
   if (typeof window === "undefined") {
@@ -39,6 +37,55 @@ export function getOrCreateGuestUserId(): string {
     localStorage.setItem(STORAGE_KEY, stored)
   }
   return stored
+}
+
+/**
+ * Secret token generated for guest visitors to authenticate their requests
+ */
+export function getOrCreateGuestUserToken(): string {
+  if (typeof window === "undefined") {
+    return "guest-server-render-token"
+  }
+  const TOKEN_KEY = "job_search_copilot_guest_token"
+  let stored = localStorage.getItem(TOKEN_KEY)
+  if (!stored) {
+    const array = new Uint8Array(24)
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+      crypto.getRandomValues(array)
+      stored = Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("")
+    } else {
+      stored = Math.random().toString(36).substring(2) + Date.now().toString(36)
+    }
+    localStorage.setItem(TOKEN_KEY, stored)
+  }
+  return stored
+}
+
+/**
+ * Returns authentication headers for fetch requests:
+ * - Bearer JWT for registered Supabase accounts
+ * - X-Guest-Id and X-Guest-Token for guest accounts
+ */
+export async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (typeof window === "undefined") return {}
+  try {
+    const supabase = getSupabaseBrowserClient()
+    const { data } = await supabase.auth.getSession()
+    if (data?.session?.access_token) {
+      return {
+        Authorization: `Bearer ${data.session.access_token}`,
+      }
+    }
+  } catch (e) {
+    console.warn("[client-auth] Could not get session token:", e)
+  }
+
+  const guestId = getOrCreateGuestUserId()
+  const guestToken = getOrCreateGuestUserToken()
+  return {
+    "X-Guest-Id": guestId,
+    "X-Guest-Token": guestToken,
+  }
 }
 
 export async function getClientSession(): Promise<ClientUserSession> {
@@ -100,16 +147,19 @@ export async function signInWithEmail(
 export async function signUpWithEmail(
   email: string,
   password: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; needsEmailConfirmation?: boolean; error?: string }> {
   try {
     const supabase = getSupabaseBrowserClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: window.location.origin },
     })
     if (error) return { success: false, error: error.message }
-    return { success: true }
+
+    // If Supabase has email confirmation enabled, data.session is null and data.user is created
+    const needsEmailConfirmation = !data.session && !!data.user
+    return { success: true, needsEmailConfirmation }
   } catch (err) {
     return { success: false, error: String(err) }
   }
@@ -122,6 +172,7 @@ export async function signOutUser(): Promise<void> {
     // Reset guest session to ensure a clean slate
     if (typeof window !== "undefined") {
       localStorage.removeItem("job_search_copilot_guest_uid")
+      localStorage.removeItem("job_search_copilot_guest_token")
     }
     window.location.href = "/"
   } catch (err) {

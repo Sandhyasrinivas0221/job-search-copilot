@@ -16,6 +16,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isConfirmationSent, setIsConfirmationSent] = useState(false)
 
   if (!isOpen) return null
 
@@ -38,22 +39,20 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
         }
         const res = await signUpWithEmail(email, password)
         if (res.success) {
-          setMessage("Account created! Check your email to confirm or sign in.")
-          setTimeout(() => {
-            window.location.reload()
-          }, 1500)
+          // Dedicated persistent confirmation screen
+          setIsConfirmationSent(true)
         } else {
           setError(res.error || "Failed to create account.")
         }
       } else {
         const res = await signInWithEmail(email, password || undefined)
         if (res.success) {
-          setMessage("Successfully signed in!")
+          setMessage("Successfully signed in! Loading your workspace...")
           setTimeout(() => {
             window.location.reload()
           }, 1000)
         } else {
-          setError(res.error || "Failed to sign in.")
+          setError(res.error || "Failed to sign in. Please verify your credentials.")
         }
       }
     } catch (err) {
@@ -61,6 +60,66 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Persistent "Check Your Email" View after Sign-Up
+  if (isConfirmationSent) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-200">
+          <button
+            onClick={() => {
+              setIsConfirmationSent(false)
+              setMode("signin")
+              onClose()
+            }}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            ✕
+          </button>
+
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-3xl mx-auto mb-4">
+            ✉️
+          </div>
+
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            We have sent an activation link to <strong className="text-indigo-600">{email}</strong>.
+          </p>
+
+          <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 mb-6 text-left space-y-1.5 leading-relaxed">
+            <p className="font-bold text-blue-950 flex items-center gap-1.5">
+              <span>ℹ️</span> Next steps to activate:
+            </p>
+            <p>1. Open your email inbox and look for the confirmation email.</p>
+            <p>2. Click the confirmation link to activate your private account.</p>
+            <p>3. Return here and sign in with your email and password.</p>
+          </div>
+
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                setIsConfirmationSent(false)
+                setMode("signin")
+                setError(null)
+              }}
+              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors"
+            >
+              Sign In to Your Account
+            </button>
+            <button
+              onClick={() => {
+                setIsConfirmationSent(false)
+                onClose()
+              }}
+              className="w-full py-2 px-4 text-gray-500 hover:text-gray-700 text-xs font-medium transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
-import { DashboardMetrics } from "@/types"
+import { DashboardMetrics, Application } from "@/types"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { authenticateRequest } from "@/lib/server-auth"
+
+function sanitizeAppSummary(app: Application): Application {
+  return {
+    ...app,
+    description: null, // Never expose raw email bodies in dashboard metrics
+  }
+}
 
 /**
  * API Route: Get Dashboard Metrics
@@ -9,6 +18,9 @@ import { DashboardMetrics } from "@/types"
  * Computes application pipeline metrics for the user's dashboard
  */
 export async function GET(request: NextRequest) {
+  const rateLimitResponse = checkRateLimit(request, { limit: 120, windowSeconds: 60 })
+  if (rateLimitResponse) return rateLimitResponse
+
   try {
     const searchParams = request.nextUrl.searchParams
     const userId = searchParams.get("userId")
@@ -20,11 +32,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Fetch all applications for the user
+    // Authenticate caller
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
+    // Fetch all applications for the authenticated user only
     const { data: applications, error: appError } = await supabaseAdmin
       .from("applications")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", auth.userId!)
 
     if (appError) {
       throw new Error(`Failed to fetch applications: ${appError.message}`)
@@ -98,16 +114,17 @@ export async function GET(request: NextRequest) {
         })),
       topRejectionReasons: [],
       learningProgress: 0,
-      upcomingInterviews: apps.filter(
-        (a) => a.current_status === "INTERVIEW"
-      ),
+      upcomingInterviews: apps
+        .filter((a) => a.current_status === "INTERVIEW")
+        .map(sanitizeAppSummary),
       recentOffers: apps
         .filter((a) => a.current_status === "OFFER")
         .sort(
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         )
-        .slice(0, 5),
+        .slice(0, 5)
+        .map(sanitizeAppSummary),
     }
 
     return NextResponse.json({
@@ -117,7 +134,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Metrics API Error:", error)
     return NextResponse.json(
-      { error: String(error) },
+      { error: "Failed to compute metrics" },
       { status: 500 }
     )
   }

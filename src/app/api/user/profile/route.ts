@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabase"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { authenticateRequest } from "@/lib/server-auth"
 
 export interface UserCareerProfile {
   id: string
@@ -107,10 +108,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 })
     }
 
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
     const { data: user, error } = await supabaseAdmin
       .from("users")
       .select("*")
-      .eq("id", userId)
+      .eq("id", auth.userId!)
       .maybeSingle()
 
     if (error) throw error
@@ -190,6 +194,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 })
     }
 
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
+    const targetId = auth.userId!
+
     const preset = INDUSTRY_PRESETS[industry_field]
     const finalRole = target_role || preset?.defaultRole || "Candidate"
     const finalLocation = target_location || preset?.defaultLocation || "United Kingdom"
@@ -206,8 +215,8 @@ export async function POST(request: NextRequest) {
     })
 
     const upsertPayload: Record<string, any> = {
-      id: userId,
-      email: email || `user-${userId.substring(0, 8)}@jobcopilot.local`,
+      id: targetId,
+      email: email || `user-${targetId.substring(0, 8)}@jobcopilot.local`,
       bio: bioPayload,
       skills: finalSkills,
       updated_at: new Date().toISOString(),

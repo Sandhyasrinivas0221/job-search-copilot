@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { getClientSession } from "@/lib/client-auth"
+import { getClientSession, getAuthHeaders } from "@/lib/client-auth"
 import { Application, ApplicationStatus } from "@/types"
 
 export default function ApplicationsPage() {
@@ -24,7 +24,10 @@ export default function ApplicationsPage() {
   const loadApplications = async (uid: string) => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/applications?userId=${uid}`)
+      const authHeaders = await getAuthHeaders()
+      const res = await fetch(`/api/applications?userId=${uid}`, {
+        headers: authHeaders,
+      })
       const data = await res.json()
       if (data.success) {
         setApplications(data.applications || [])
@@ -49,9 +52,13 @@ export default function ApplicationsPage() {
 
     try {
       setSubmitting(true)
+      const authHeaders = await getAuthHeaders()
       const res = await fetch("/api/applications", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           userId,
           company_name: newCompany,
@@ -93,9 +100,13 @@ export default function ApplicationsPage() {
         )
       )
 
+      const authHeaders = await getAuthHeaders()
       await fetch("/api/applications", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           id: appId,
           userId,
@@ -113,7 +124,11 @@ export default function ApplicationsPage() {
 
     try {
       setApplications((prev) => prev.filter((a) => a.id !== appId))
-      await fetch(`/api/applications?id=${appId}`, { method: "DELETE" })
+      const authHeaders = await getAuthHeaders()
+      await fetch(`/api/applications?id=${appId}&userId=${userId}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      })
     } catch (err) {
       console.error("Failed to delete application:", err)
       loadApplications(userId)

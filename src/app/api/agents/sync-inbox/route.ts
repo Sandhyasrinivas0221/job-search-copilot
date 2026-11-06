@@ -3,6 +3,7 @@ import { getValidGmailAccessToken, fetchGmailEmails } from "@/lib/gmail-fetcher"
 import { MailAgent } from "@/agents/mail-agent"
 import { getApplications, getUser } from "@/lib/db"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { authenticateRequest } from "@/lib/server-auth"
 
 async function handleSync(request: NextRequest, userIdParam?: string) {
   // Rate limit: 10 sync operations per minute per client/user
@@ -28,6 +29,11 @@ async function handleSync(request: NextRequest, userIdParam?: string) {
     if (!/^[a-zA-Z0-9_-]{1,64}$/.test(userId)) {
       return NextResponse.json({ error: "Invalid userId format" }, { status: 400 })
     }
+
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
+    userId = auth.userId!
 
     console.log(`[api/agents/sync-inbox] Starting inbox sync for user ${userId}...`)
 

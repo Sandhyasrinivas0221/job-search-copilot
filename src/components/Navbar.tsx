@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getClientSession, signOutUser, ClientUserSession } from "@/lib/client-auth"
+import { getClientSession, signOutUser, ClientUserSession, getAuthHeaders } from "@/lib/client-auth"
 import { AuthModal } from "@/components/AuthModal"
 
 export function Navbar() {
@@ -15,10 +15,11 @@ export function Navbar() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
 
   useEffect(() => {
-    getClientSession().then((s) => {
+    getClientSession().then(async (s) => {
       setSession(s)
       if (s?.userId) {
-        fetch(`/api/email/credentials?userId=${s.userId}`)
+        const authHeaders = await getAuthHeaders()
+        fetch(`/api/email/credentials?userId=${s.userId}`, { headers: authHeaders })
           .then((r) => r.json())
           .then((data) => {
             const gmail = data.credentials?.find(
@@ -38,8 +39,10 @@ export function Navbar() {
     try {
       setSyncing(true)
       setSyncMessage("Syncing...")
+      const authHeaders = await getAuthHeaders()
       const res = await fetch(`/api/agents/sync-inbox?userId=${session.userId}`, {
         method: "POST",
+        headers: authHeaders,
       })
       const data = await res.json()
       if (data.success) {

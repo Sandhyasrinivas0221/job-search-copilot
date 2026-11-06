@@ -149,7 +149,7 @@ export async function fetchGmailEmails(
 ): Promise<EmailParsed[]> {
   try {
     const baseBoardQuery =
-      "from:indeed.com OR from:indeedapply@indeed.com OR from:reed.co.uk OR from:totaljobs.com OR from:linkedin.com OR from:glassdoor.com OR from:jobs.nhs.uk OR from:greenhouse.io OR from:lever.co OR from:myworkday.com OR subject:application OR subject:applied OR subject:interview OR subject:offer OR subject:candidate OR subject:assessment"
+      '(from:indeedapply@indeed.com OR from:jobs.nhs.uk OR from:greenhouse.io OR from:lever.co OR from:myworkday.com OR subject:"application" OR subject:"applied" OR subject:"interview" OR subject:"offer" OR subject:"assessment") -subject:"job alert" -subject:"new jobs" -subject:"recommended jobs" -subject:"jobs matching" -subject:"recommendations"'
 
     let activeQuery = baseBoardQuery
 
@@ -183,9 +183,9 @@ export async function fetchGmailEmails(
     const listData = await listResponse.json()
     let messages = listData.messages || []
 
-    // If targeted query yielded 0 messages, fall back to general job board search
+    // If targeted query yielded 0 messages, fall back to base job board query
     if (messages.length === 0 && activeQuery !== baseBoardQuery) {
-      console.log("[gmail-fetcher] Targeted search empty, expanding to broader job board query...")
+      console.log("[gmail-fetcher] Targeted search empty, expanding to broader application query...")
       const fallbackQuery = encodeURIComponent(baseBoardQuery)
       const broaderRes = await fetch(
         `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${limit}&q=${fallbackQuery}`,
@@ -201,25 +201,8 @@ export async function fetchGmailEmails(
       }
     }
 
-    // If still no job board messages found, fallback to recent messages
     if (messages.length === 0) {
-      console.log("[gmail-fetcher] No filtered job emails found, fetching recent messages...")
-      const recentRes = await fetch(
-        `https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=15`,
-        {
-          headers: {
-            Authorization: `Bearer ${gmailAccessToken}`,
-          },
-        }
-      )
-      if (recentRes.ok) {
-        const recentData = await recentRes.json()
-        messages = recentData.messages || []
-      }
-    }
-
-    if (messages.length === 0) {
-      console.log("[gmail-fetcher] No emails found in inbox")
+      console.log("[gmail-fetcher] No job application emails found in inbox")
       return []
     }
 

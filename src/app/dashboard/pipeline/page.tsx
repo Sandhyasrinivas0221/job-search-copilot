@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { getClientSession } from "@/lib/client-auth"
+import { getClientSession, getAuthHeaders } from "@/lib/client-auth"
 import { Application, ApplicationStatus } from "@/types"
 
 const PIPELINE_COLUMNS: { status: ApplicationStatus; title: string; color: string }[] = [
@@ -21,7 +21,10 @@ export default function PipelinePage() {
   const loadPipeline = async (uid: string) => {
     try {
       setLoading(true)
-      const res = await fetch(`/api/applications?userId=${uid}`)
+      const authHeaders = await getAuthHeaders()
+      const res = await fetch(`/api/applications?userId=${uid}`, {
+        headers: authHeaders,
+      })
       const data = await res.json()
       if (data.success) {
         setApplications(data.applications || [])
@@ -48,9 +51,13 @@ export default function PipelinePage() {
         )
       )
 
+      const authHeaders = await getAuthHeaders()
       await fetch("/api/applications", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           id: appId,
           userId,

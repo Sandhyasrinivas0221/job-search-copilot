@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { getClientSession } from "@/lib/client-auth"
+import { getClientSession, getAuthHeaders } from "@/lib/client-auth"
 import { DashboardMetrics } from "@/types"
 import { ResumeUploadModal } from "@/components/ResumeUploadModal"
 import { UserCareerProfile } from "@/app/api/user/profile/route"
@@ -19,9 +19,10 @@ export default function Home() {
 
   const loadData = async (uid: string) => {
     try {
+      const authHeaders = await getAuthHeaders()
       const [metricsRes, profileRes] = await Promise.all([
-        fetch(`/api/metrics?userId=${uid}`),
-        fetch(`/api/user/profile?userId=${uid}`),
+        fetch(`/api/metrics?userId=${uid}`, { headers: authHeaders }),
+        fetch(`/api/user/profile?userId=${uid}`, { headers: authHeaders }),
       ])
 
       const metricsData = await metricsRes.json()
@@ -53,9 +54,13 @@ export default function Home() {
     if (!userSession?.userId) return
     try {
       setLoading(true)
+      const authHeaders = await getAuthHeaders()
       await fetch("/api/user/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           userId: userSession.userId,
           industry_field: field,
@@ -85,8 +90,10 @@ export default function Home() {
     try {
       setSyncingInbox(true)
       setSyncFeedback("Connecting to Gmail to parse latest job applications...")
+      const authHeaders = await getAuthHeaders()
       const res = await fetch(`/api/agents/sync-inbox?userId=${userSession.userId}`, {
         method: "POST",
+        headers: authHeaders,
       })
       const data = await res.json()
       if (data.success) {

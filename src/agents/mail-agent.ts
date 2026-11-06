@@ -154,9 +154,48 @@ export class MailAgent {
   }
 
   /**
+   * Identifies and blocks job alerts, newsletters, and marketing digests from being logged as applications
+   */
+  private isJobAlert(subject: string, body: string, from: string): boolean {
+    const s = subject.toLowerCase()
+    const b = body.toLowerCase()
+    const f = from.toLowerCase()
+
+    if (
+      /job alert|jobs alert|job alerts|new jobs in|jobs for you|recommended for you|jobs you might like|jobs you may like|similar jobs|job recommendations|urgent hiring in|daily job alert|weekly job alert|saved search|job suggestions|matches for your search|hiring now:/i.test(
+        s
+      )
+    ) {
+      return true
+    }
+
+    if (
+      /alert|jobalerts|job-alert|newsletter|recommendations|mailer|digest/i.test(f)
+    ) {
+      return true
+    }
+
+    if (
+      /you are receiving this job alert|view more jobs|manage this job alert|create another alert|save this job alert|unsubscribe from job alerts|jobs similar to your search|jobs matching your search/i.test(
+        b
+      )
+    ) {
+      return true
+    }
+
+    return false
+  }
+
+  /**
    * Detects the email category across all industries and platforms
    */
   private detectEmailEventType(subject: string, body: string, from: string): EmailEventType {
+    // 0. Strict Job Alert blocker - NEVER classify a job alert / digest as an application
+    if (this.isJobAlert(subject, body, from)) {
+      console.log(`[MailAgent] Filtered out job alert email: "${subject}"`)
+      return EmailEventType.UNKNOWN
+    }
+
     const text = `${subject} ${body}`.toLowerCase()
     const sender = from.toLowerCase()
 
@@ -194,16 +233,9 @@ export class MailAgent {
     // 5. Application Confirmation (Indeed Apply, Reed, LinkedIn, Direct)
     if (
       /indeed application:|application submitted|application received|thank you for applying|thanks for applying|we received your application|application confirmation|you applied to/i.test(subject) ||
-      (/application has been submitted|application was sent to|thank you for submitting your application/i.test(body))
+      (/your application has been submitted|application was sent to|thank you for submitting your application to/i.test(body))
     ) {
       return EmailEventType.APPLICATION_RECEIVED
-    }
-
-    // 6. Job alert recommendations from platforms
-    if (sender.includes("indeed.com") || sender.includes("reed.co.uk") || sender.includes("totaljobs")) {
-      if (/application/i.test(subject)) {
-        return EmailEventType.APPLICATION_RECEIVED
-      }
     }
 
     return EmailEventType.UNKNOWN
@@ -309,9 +341,36 @@ export class MailAgent {
     if (company) {
       company = company.replace(/^(?:the\s+)?/i, "").trim()
       company = company.replace(/\s+/g, " ")
+
+      // Never allow an email address or sender domain to become the company name!
+      if (
+        company.includes("@") ||
+        /\.(com|co\.uk|org|net|io|gov|edu)$/i.test(company) ||
+        /^(indeed|reed|totaljobs|linkedin|glassdoor|job alert|alerts|notifications|no-reply|noreply|mailer|donotreply)/i.test(
+          company
+        )
+      ) {
+        // Try extracting business name from domain if it's a direct employer email (e.g. info@acmecare.co.uk -> Acme Care)
+        const domainMatch = company.match(/@([a-zA-Z0-9-]+)\./)
+        if (
+          domainMatch &&
+          !/indeed|reed|totaljobs|linkedin|gmail|yahoo|hotmail|outlook|google|icloud/i.test(
+            domainMatch[1]
+          )
+        ) {
+          const raw = domainMatch[1].replace(/[-_]/g, " ")
+          company = raw.charAt(0).toUpperCase() + raw.slice(1)
+        } else {
+          company = null
+        }
+      }
     }
+
     if (role) {
       role = role.replace(/\s+/g, " ").trim()
+      if (role.includes("@") || role.length > 100) {
+        role = this.targetRole || "Candidate"
+      }
     }
 
     return { company, role, location }
@@ -380,7 +439,7 @@ export class MailAgent {
       salary_min: null,
       salary_max: null,
       job_url: null,
-      description: email.body.substring(0, 1500),
+      description: `Application for ${role} at ${company} (detected via email sync)`,
       last_update: new Date().toISOString(),
       days_in_stage: 0,
     })
@@ -392,9 +451,9 @@ export class MailAgent {
         old_status: null,
         new_status: ApplicationStatus.APPLIED,
         reason: "Detected application confirmation email",
-        notes: `Parsed from email: "${email.subject}"`,
-        email_subject: email.subject,
-        email_body: email.body.substring(0, 500),
+        notes: `Parsed application confirmation for ${role} at ${company}`,
+        email_subject: email.subject.substring(0, 150),
+        email_body: null,
         detected_by: "MailAgent",
       })
     }
@@ -428,7 +487,7 @@ export class MailAgent {
         salary_min: null,
         salary_max: null,
         job_url: null,
-        description: email.body.substring(0, 1500),
+        description: `Application for ${role} at ${company} (status updated to ${newStatus})`,
         last_update: new Date().toISOString(),
         days_in_stage: 0,
       })
@@ -447,9 +506,9 @@ export class MailAgent {
         old_status: existing?.current_status || null,
         new_status: newStatus,
         reason,
-        notes: email.subject,
-        email_subject: email.subject,
-        email_body: email.body.substring(0, 500),
+        notes: `Status update: ${newStatus} for ${role} at ${company}`,
+        email_subject: email.subject.substring(0, 150),
+        email_body: null,
         detected_by: "MailAgent",
       })
     }

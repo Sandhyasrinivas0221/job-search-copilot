@@ -7,11 +7,12 @@ import {
 } from "@/lib/db"
 import { ApplicationStatus } from "@/types"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { authenticateRequest } from "@/lib/server-auth"
 
 /**
  * API Route: Job Suggestions
  * GET   /api/suggestions?userId=<id>&applied=<true|false>&dismissed=<true|false>
- * PATCH /api/suggestions (body: { id, applied?: boolean, dismissed?: boolean })
+ * PATCH /api/suggestions (body: { id, userId, applied?: boolean, dismissed?: boolean })
  * POST  /api/suggestions (body: { suggestion, userId }) -> Converts suggestion to application
  */
 
@@ -30,14 +31,16 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
     const appliedParam = searchParams.get("applied")
     const dismissedParam = searchParams.get("dismissed")
 
-    // By default, filter out applied and dismissed jobs unless explicitly asked
     const notApplied = appliedParam === "true" ? false : true
     const notDismissed = dismissedParam === "true" ? false : true
 
-    const suggestions = await getJobSuggestions(userId, notApplied, notDismissed)
+    const suggestions = await getJobSuggestions(auth.userId!, notApplied, notDismissed)
 
     return NextResponse.json({
       success: true,
@@ -58,13 +61,18 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { id, applied, dismissed } = body
+    const { id, userId, applied, dismissed } = body
 
     if (!id) {
       return NextResponse.json(
         { error: "Missing suggestion id" },
         { status: 400 }
       )
+    }
+
+    if (userId) {
+      const auth = await authenticateRequest(request, userId)
+      if (!auth.authorized) return auth.response!
     }
 
     const updates: Record<string, any> = {}
@@ -101,9 +109,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const auth = await authenticateRequest(request, userId)
+    if (!auth.authorized) return auth.response!
+
     // 1. Create Application from Suggestion
     const newApp = await createApplication({
-      user_id: userId,
+      user_id: auth.userId!,
       company_name: String(suggestion.company_name).substring(0, 100),
       job_title: String(suggestion.job_title).substring(0, 150),
       current_status: ApplicationStatus.APPLIED,
@@ -111,7 +122,7 @@ export async function POST(request: NextRequest) {
       salary_min: suggestion.salary_min ? Number(suggestion.salary_min) : null,
       salary_max: suggestion.salary_max ? Number(suggestion.salary_max) : null,
       job_url: suggestion.job_url ? String(suggestion.job_url).substring(0, 500) : null,
-      description: suggestion.description ? String(suggestion.description).substring(0, 5000) : null,
+      description: suggestion.description ? String(suggestion.description).substring(0, 500) : null,
       source_site: suggestion.source_site ? String(suggestion.source_site).substring(0, 50) : "Job Suggestion",
       easy_apply: Boolean(suggestion.easy_apply),
       applied_date: new Date().toISOString(),
@@ -134,7 +145,7 @@ export async function POST(request: NextRequest) {
     // 3. Log status history
     await createStatusHistory({
       application_id: newApp.id,
-      user_id: userId,
+      user_id: auth.userId!,
       old_status: null,
       new_status: ApplicationStatus.APPLIED,
       reason: `Applied from Job Suggestion (match: ${suggestion.match_score || 0}%)`,

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { getAuthHeaders } from "@/lib/client-auth"
 
 interface ResumeUploadModalProps {
   userId: string
@@ -39,18 +40,23 @@ export function ResumeUploadModal({
       setSyncResult(null)
 
       let res: Response
+      const authHeaders = await getAuthHeaders()
       if (file) {
         const formData = new FormData()
         formData.append("file", file)
         formData.append("userId", userId)
         res = await fetch("/api/user/resume-upload", {
           method: "POST",
+          headers: authHeaders,
           body: formData,
         })
       } else {
         res = await fetch("/api/user/resume-upload", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            ...authHeaders,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ userId, text: textInput }),
         })
       }
@@ -73,7 +79,10 @@ export function ResumeUploadModal({
     try {
       setSyncingInbox(true)
       setSyncResult(null)
-      const res = await fetch(`/api/agents/sync-inbox?userId=${userId}`)
+      const authHeaders = await getAuthHeaders()
+      const res = await fetch(`/api/agents/sync-inbox?userId=${userId}`, {
+        headers: authHeaders,
+      })
       const data = await res.json()
       if (res.ok && data.success) {
         const count = data.applications?.length || 0

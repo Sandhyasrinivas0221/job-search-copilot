@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { createClient } from "@supabase/supabase-js"
+import { getClientSession, getAuthHeaders } from "@/lib/client-auth"
 import { EmailConfig } from "@/components/EmailConfig"
 import { EmailCredentials } from "@/types"
 import { ResumeUploadModal } from "@/components/ResumeUploadModal"
@@ -109,7 +109,8 @@ export default function SettingsPage() {
 
   const fetchCareerProfile = async (uid: string) => {
     try {
-      const res = await fetch(`/api/user/profile?userId=${uid}`)
+      const authHeaders = await getAuthHeaders()
+      const res = await fetch(`/api/user/profile?userId=${uid}`, { headers: authHeaders })
       const data = await res.json()
       if (data.success && data.profile) {
         setCareerProfile(data.profile)
@@ -122,19 +123,8 @@ export default function SettingsPage() {
   useEffect(() => {
     const initializeUser = async () => {
       try {
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || ""
-        )
-
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        const uid =
-          user?.id ||
-          process.env.NEXT_PUBLIC_TEST_USER_ID ||
-          "00000000-0000-0000-0000-000000000001"
+        const session = await getClientSession()
+        const uid = session.userId
 
         setUserId(uid)
         fetchEmailCredentials(uid)
@@ -173,9 +163,13 @@ export default function SettingsPage() {
     if (!careerProfile || !userId) return
     try {
       setLoading(true)
+      const authHeaders = await getAuthHeaders()
       const res = await fetch("/api/user/profile", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           userId,
           full_name: careerProfile.full_name,
@@ -219,7 +213,8 @@ export default function SettingsPage() {
 
   const fetchEmailCredentials = async (uid: string) => {
     try {
-      const res = await fetch(`/api/email/credentials?userId=${uid}`)
+      const authHeaders = await getAuthHeaders()
+      const res = await fetch(`/api/email/credentials?userId=${uid}`, { headers: authHeaders })
       const data = await res.json()
       if (data.success) {
         setEmailCredentials(data.credentials || [])
@@ -231,9 +226,13 @@ export default function SettingsPage() {
 
   const handleEmailSave = async (provider: string, config: any) => {
     try {
+      const authHeaders = await getAuthHeaders()
       const res = await fetch("/api/email/credentials", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           userId,
           provider,
@@ -253,9 +252,13 @@ export default function SettingsPage() {
 
   const handleEmailDelete = async (provider: string) => {
     try {
+      const authHeaders = await getAuthHeaders()
       const res = await fetch(
         `/api/email/credentials?userId=${userId}&provider=${provider}`,
-        { method: "DELETE" }
+        {
+          method: "DELETE",
+          headers: authHeaders,
+        }
       )
 
       const data = await res.json()
