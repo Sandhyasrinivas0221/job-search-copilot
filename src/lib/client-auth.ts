@@ -156,7 +156,7 @@ export async function signInWithEmail(
 export async function signUpWithEmail(
   email: string,
   password: string
-): Promise<{ success: boolean; needsEmailConfirmation?: boolean; error?: string }> {
+): Promise<{ success: boolean; needsEmailConfirmation?: boolean; sessionCreated?: boolean; error?: string }> {
   try {
     const supabase = getSupabaseBrowserClient()
     const redirectTo = getAuthRedirectUrl()
@@ -169,10 +169,39 @@ export async function signUpWithEmail(
 
     // If Supabase has email confirmation enabled, data.session is null and data.user is created
     const needsEmailConfirmation = !data.session && !!data.user
-    return { success: true, needsEmailConfirmation }
+    const sessionCreated = !!data.session
+    return { success: true, needsEmailConfirmation, sessionCreated }
   } catch (err) {
     return { success: false, error: String(err) }
   }
+}
+
+export async function migrateGuestDataIfPresent(permanentUserId: string): Promise<boolean> {
+  if (typeof window === "undefined") return false
+  const guestUid = localStorage.getItem("job_search_copilot_guest_uid")
+  if (!guestUid || guestUid === permanentUserId) return false
+
+  try {
+    const authHeaders = await getAuthHeaders()
+    const res = await fetch("/api/user/migrate-guest", {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ guestUserId: guestUid }),
+    })
+
+    if (res.ok) {
+      console.log(`[client-auth] Successfully migrated guest data from ${guestUid} to ${permanentUserId}`)
+      localStorage.removeItem("job_search_copilot_guest_uid")
+      localStorage.removeItem("job_search_copilot_guest_token")
+      return true
+    }
+  } catch (err) {
+    console.warn("[client-auth] Guest migration attempt error:", err)
+  }
+  return false
 }
 
 export async function signOutUser(): Promise<void> {

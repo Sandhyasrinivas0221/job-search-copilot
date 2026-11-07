@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { signInWithEmail, signUpWithEmail } from "@/lib/client-auth"
+import { signInWithEmail, signUpWithEmail, migrateGuestDataIfPresent, getSupabaseBrowserClient } from "@/lib/client-auth"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -17,8 +17,32 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isConfirmationSent, setIsConfirmationSent] = useState(false)
+  const [resendingEmail, setResendingEmail] = useState(false)
+  const [resendStatus, setResendStatus] = useState<string | null>(null)
 
   if (!isOpen) return null
+
+  const handleResendConfirmation = async () => {
+    if (!email) return
+    try {
+      setResendingEmail(true)
+      setResendStatus(null)
+      const supabase = getSupabaseBrowserClient()
+      const { error: resendErr } = await supabase.auth.resend({
+        type: "signup",
+        email,
+      })
+      if (resendErr) {
+        setResendStatus(`Failed: ${resendErr.message}`)
+      } else {
+        setResendStatus("New confirmation email sent! Please check your inbox.")
+      }
+    } catch {
+      setResendStatus("Failed to resend confirmation email.")
+    } finally {
+      setResendingEmail(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,8 +63,21 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
         }
         const res = await signUpWithEmail(email, password)
         if (res.success) {
-          // Dedicated persistent confirmation screen
-          setIsConfirmationSent(true)
+          if (res.sessionCreated) {
+            // Auto-login supported or email confirmation disabled
+            setMessage("Account created successfully! Loading your workspace...")
+            const supabase = getSupabaseBrowserClient()
+            const { data } = await supabase.auth.getUser()
+            if (data?.user?.id) {
+              await migrateGuestDataIfPresent(data.user.id)
+            }
+            setTimeout(() => {
+              window.location.reload()
+            }, 1000)
+          } else {
+            // Dedicated persistent confirmation screen
+            setIsConfirmationSent(true)
+          }
         } else {
           setError(res.error || "Failed to create account.")
         }
@@ -48,6 +85,11 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
         const res = await signInWithEmail(email, password || undefined)
         if (res.success) {
           setMessage("Successfully signed in! Loading your workspace...")
+          const supabase = getSupabaseBrowserClient()
+          const { data } = await supabase.auth.getUser()
+          if (data?.user?.id) {
+            await migrateGuestDataIfPresent(data.user.id)
+          }
           setTimeout(() => {
             window.location.reload()
           }, 1000)
@@ -55,7 +97,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
           setError(res.error || "Failed to sign in. Please verify your credentials.")
         }
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred.")
     } finally {
       setLoading(false)
@@ -65,8 +107,17 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   // Persistent "Check Your Email" View after Sign-Up
   if (isConfirmationSent) {
     return (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-200">
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+        onClick={(e) => {
+          // Prevent backdrop clicks from closing the confirmation screen
+          e.stopPropagation()
+        }}
+      >
+        <div
+          className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             onClick={() => {
               setIsConfirmationSent(false)
@@ -74,6 +125,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
               onClose()
             }}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title="Close"
           >
             ✕
           </button>
@@ -87,14 +139,20 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
             We have sent an activation link to <strong className="text-indigo-600">{email}</strong>.
           </p>
 
-          <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 mb-6 text-left space-y-1.5 leading-relaxed">
+          <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 mb-5 text-left space-y-1.5 leading-relaxed">
             <p className="font-bold text-blue-950 flex items-center gap-1.5">
               <span>ℹ️</span> Next steps to activate:
             </p>
-            <p>1. Open your email inbox and look for the confirmation email.</p>
-            <p>2. Click the confirmation link to activate your private account.</p>
-            <p>3. Return here and sign in with your email and password.</p>
+            <p>1. Open your inbox and look for the confirmation email.</p>
+            <p>2. Click the confirmation link to activate your private workspace.</p>
+            <p>3. Return here and sign in with your password.</p>
           </div>
+
+          {resendStatus && (
+            <div className={`p-2.5 rounded-lg text-xs mb-4 font-medium ${resendStatus.startsWith("Failed") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"}`}>
+              {resendStatus}
+            </div>
+          )}
 
           <div className="space-y-2">
             <button
@@ -103,16 +161,25 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
                 setMode("signin")
                 setError(null)
               }}
-              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors"
+              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors cursor-pointer"
             >
-              Sign In to Your Account
+              I Confirmed My Email → Sign In
             </button>
+            
+            <button
+              onClick={handleResendConfirmation}
+              disabled={resendingEmail}
+              className="w-full py-2 px-4 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200 disabled:opacity-50 cursor-pointer"
+            >
+              {resendingEmail ? "Sending..." : "Didn't receive email? Resend link"}
+            </button>
+
             <button
               onClick={() => {
                 setIsConfirmationSent(false)
                 onClose()
               }}
-              className="w-full py-2 px-4 text-gray-500 hover:text-gray-700 text-xs font-medium transition-colors"
+              className="w-full py-2 px-4 text-gray-400 hover:text-gray-600 text-xs font-medium transition-colors"
             >
               Close
             </button>
@@ -123,8 +190,14 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
@@ -141,14 +214,14 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
               {mode === "signin" ? "Sign In to Your Workspace" : "Create Private Account"}
             </h2>
             <p className="text-xs text-gray-500">
-              Each user has their own isolated applications, jobs, and learning paths
+              Your applications, jobs, and learning paths stay private to you
             </p>
           </div>
         </div>
 
         {currentUserId && (
           <div className="mb-4 p-2.5 bg-gray-50 rounded-lg text-[11px] text-gray-500 font-mono">
-            Current Workspace ID: {currentUserId}
+            Active Workspace ID: {currentUserId}
           </div>
         )}
 
@@ -195,7 +268,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors disabled:opacity-50"
+            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Processing..." : mode === "signin" ? "Sign In" : "Create Account"}
           </button>

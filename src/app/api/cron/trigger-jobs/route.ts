@@ -14,7 +14,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(request: NextRequest) {
   // Prevent unauthenticated public sweeps
-  const authCheck = verifyCronAuthorization(request)
+  const authCheck = await verifyCronAuthorization(request)
   if (!authCheck.authorized) return authCheck.response!
 
   const rateLimitResponse = checkRateLimit(request, { limit: 20, windowSeconds: 60 })

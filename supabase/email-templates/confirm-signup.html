@@ -1,0 +1,166 @@
+<!--
+  Job Search Copilot - Branded Confirmation Email Template
+  
+  Instructions for Supabase Dashboard:
+  1. Open your Supabase Dashboard -> Authentication -> Email Templates
+  2. Select "Confirm signup"
+  3. Set Subject to: Confirm your Job Search Copilot Account 🚀
+  4. Replace the Body content with the HTML code below and click "Save".
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm Your Account - Job Search Copilot</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1e293b;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #f8fafc;
+      padding: 40px 15px;
+    }
+    .container {
+      max-width: 560px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+    }
+    .header {
+      background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+      padding: 36px 30px;
+      text-align: center;
+      color: #ffffff;
+    }
+    .logo-badge {
+      font-size: 38px;
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+    .brand-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin: 0;
+      color: #ffffff;
+    }
+    .content {
+      padding: 36px 32px;
+    }
+    .greeting {
+      font-size: 18px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 0;
+      margin-bottom: 14px;
+    }
+    .text {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #475569;
+      margin-bottom: 24px;
+    }
+    .btn-container {
+      text-align: center;
+      margin: 32px 0;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #4f46e5;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 14px 32px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+    }
+    .features-card {
+      background-color: #f1f5f9;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      border: 1px solid #e2e8f0;
+    }
+    .features-card h4 {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .features-card ul {
+      margin: 0;
+      padding-left: 20px;
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .fallback-text {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.5;
+      word-break: break-all;
+    }
+    .footer {
+      padding: 24px 32px;
+      background-color: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <div class="logo-badge">🚀</div>
+        <h1 class="brand-title">Job Search Copilot</h1>
+      </div>
+      
+      <div class="content">
+        <h2 class="greeting">Welcome to Your AI Career Workspace!</h2>
+        <p class="text">
+          Thank you for creating an account. Please click the button below to confirm your email address and activate your private job search copilot.
+        </p>
+
+        <div class="btn-container">
+          <a href="{{ .ConfirmationURL }}" class="btn" target="_blank">Confirm My Account →</a>
+        </div>
+
+        <div class="features-card">
+          <h4>What's ready for you:</h4>
+          <ul>
+            <li>Private, isolated dashboard for your applications</li>
+            <li>Automated 7 & 14-day follow-up reminders</li>
+            <li>AI agent sync for job confirmation emails</li>
+            <li>Customized career & learning suggestions</li>
+          </ul>
+        </div>
+
+        <p class="fallback-text">
+          If the button above does not work, copy and paste this link into your browser:<br>
+          <a href="{{ .ConfirmationURL }}" style="color: #4f46e5;">{{ .ConfirmationURL }}</a>
+        </p>
+      </div>
+
+      <div class="footer">
+        <p style="margin: 0 0 6px 0;">This email was sent to {{ .Email }} for account verification.</p>
+        <p style="margin: 0;">If you did not request this account, you can safely ignore this email.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

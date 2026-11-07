@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getClientSession, signOutUser, ClientUserSession, getAuthHeaders, getSupabaseBrowserClient } from "@/lib/client-auth"
+import { getClientSession, signOutUser, ClientUserSession, getAuthHeaders, getSupabaseBrowserClient, migrateGuestDataIfPresent } from "@/lib/client-auth"
 import { AuthModal } from "@/components/AuthModal"
 
 export function Navbar() {
@@ -27,6 +27,10 @@ export function Navbar() {
     const refreshSession = () => {
       getClientSession().then(async (s) => {
         setSession(s)
+        if (s?.userId && !s.isDemo) {
+          // If user is authenticated, migrate any residual guest data
+          await migrateGuestDataIfPresent(s.userId)
+        }
         if (s?.userId) {
           const authHeaders = await getAuthHeaders()
           fetch(`/api/email/credentials?userId=${s.userId}`, { headers: authHeaders })

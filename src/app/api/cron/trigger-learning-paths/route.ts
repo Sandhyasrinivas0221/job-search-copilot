@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { LearningPathService, LearningPathRecommendation } from "@/lib/learning-path-service"
 import { supabaseAdmin } from "@/lib/supabase"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { verifyCronAuthorization } from "@/lib/auth-guard"
 
 export async function POST(request: NextRequest) {
+  const authCheck = await verifyCronAuthorization(request)
+  if (!authCheck.authorized) return authCheck.response!
+
   const rateLimitResponse = checkRateLimit(request, { limit: 15, windowSeconds: 60 })
   if (rateLimitResponse) return rateLimitResponse
 

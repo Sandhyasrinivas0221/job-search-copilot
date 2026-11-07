@@ -8,7 +8,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
-  const authCheck = verifyCronAuthorization(request)
+  const authCheck = await verifyCronAuthorization(request)
   if (!authCheck.authorized) return authCheck.response!
 
   const rateLimitResponse = checkRateLimit(request, { limit: 10, windowSeconds: 60 })
@@ -17,11 +17,18 @@ export async function GET(request: NextRequest) {
   try {
     console.log("[cron/metrics-reporter] Starting metrics reporter agent (daily email)")
 
-    // Get all active users
-    const { data: users, error: usersError } = await supabaseAdmin
+    // Get active users (or single authenticated user if manually triggered)
+    let usersQuery = supabaseAdmin
       .from("users")
       .select("id, email")
-      .limit(100)
+
+    if (authCheck.authenticatedUserId) {
+      usersQuery = usersQuery.eq("id", authCheck.authenticatedUserId)
+    } else {
+      usersQuery = usersQuery.limit(100)
+    }
+
+    const { data: users, error: usersError } = await usersQuery
 
     if (usersError || !users) {
       throw new Error(`Failed to fetch users: ${usersError?.message}`)

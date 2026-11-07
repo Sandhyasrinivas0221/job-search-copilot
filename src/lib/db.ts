@@ -38,14 +38,30 @@ export async function getOrCreateUser(
   const existing = await getUser(userId)
   if (existing) return existing
 
-  const defaultEmail = email || `user-${userId.substring(0, 8)}@jobcopilot.local`
+  let userEmail = email
+  let userName = full_name
+
+  // Attempt to fetch registered email from Supabase Auth admin if not provided
+  if (!userEmail && typeof window === "undefined") {
+    try {
+      const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId)
+      if (authData?.user?.email) {
+        userEmail = authData.user.email
+        userName = authData.user.user_metadata?.full_name || userName
+      }
+    } catch {
+      // Ignore if admin key not present or user is guest UUID
+    }
+  }
+
+  const defaultEmail = userEmail || `user-${userId.substring(0, 8)}@jobcopilot.local`
   const { data, error } = await supabaseAdmin
     .from("users")
     .upsert(
       {
         id: userId,
         email: defaultEmail,
-        full_name: full_name || "Job Candidate",
+        full_name: userName || "Job Candidate",
         skills: [],
         bio: null,
       },
@@ -55,10 +71,11 @@ export async function getOrCreateUser(
     .single()
 
   if (error || !data) {
+    console.warn(`[db] Note: user row upsert for ${userId}:`, error?.message)
     return {
       id: userId,
       email: defaultEmail,
-      full_name: full_name || "Job Candidate",
+      full_name: userName || "Job Candidate",
       profile_picture_url: null,
       skills: [],
       bio: null,
@@ -130,6 +147,9 @@ export async function getApplication(applicationId: string): Promise<Application
 }
 
 export async function createApplication(app: Omit<Application, "id" | "created_at" | "updated_at">): Promise<Application | null> {
+  // Ensure foreign key constraint is satisfied for new accounts
+  await getOrCreateUser(app.user_id)
+
   const { data, error } = await supabaseAdmin
     .from("applications")
     .insert([app])
@@ -217,6 +237,7 @@ export async function getStatusHistory(applicationId: string): Promise<StatusHis
 }
 
 export async function createStatusHistory(entry: Omit<StatusHistory, "id" | "created_at">): Promise<StatusHistory | null> {
+  await getOrCreateUser(entry.user_id)
   const { data, error } = await supabaseAdmin
     .from("status_history")
     .insert([entry])
@@ -251,6 +272,7 @@ export async function getJobSuggestions(userId: string, notApplied = true, notDi
 }
 
 export async function createJobSuggestion(job: Omit<JobSuggestion, "id" | "created_at" | "updated_at">): Promise<JobSuggestion | null> {
+  await getOrCreateUser(job.user_id)
   const { data, error } = await supabaseAdmin
     .from("job_suggestions")
     .insert([job])
@@ -377,6 +399,7 @@ export async function getLearningTasks(userId: string, completedOnly = false): P
 }
 
 export async function createLearningTask(task: Omit<LearningTask, "id" | "created_at" | "updated_at">): Promise<LearningTask | null> {
+  await getOrCreateUser(task.user_id)
   const { data, error } = await supabaseAdmin
     .from("learning_tasks")
     .insert([task])

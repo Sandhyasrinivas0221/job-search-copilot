@@ -16,7 +16,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
-  const authCheck = verifyCronAuthorization(request)
+  const authCheck = await verifyCronAuthorization(request)
   if (!authCheck.authorized) return authCheck.response!
 
   const rateLimitResponse = checkRateLimit(request, { limit: 20, windowSeconds: 60 })
@@ -25,12 +25,18 @@ export async function GET(request: NextRequest) {
   try {
     console.log("[cron/mail-listener] Starting scheduled mail listener check...")
 
-    // Get all connected Gmail users
-    const { data: emailCreds, error: credsError } = await supabaseAdmin
+    // If user triggered, only check that specific user's credentials; otherwise global cron check
+    let query = supabaseAdmin
       .from("email_credentials")
       .select("user_id, email_address")
       .eq("provider", "gmail")
       .eq("is_connected", true)
+
+    if (authCheck.authenticatedUserId) {
+      query = query.eq("user_id", authCheck.authenticatedUserId)
+    }
+
+    const { data: emailCreds, error: credsError } = await query
 
     if (credsError || !emailCreds || emailCreds.length === 0) {
       return NextResponse.json({
