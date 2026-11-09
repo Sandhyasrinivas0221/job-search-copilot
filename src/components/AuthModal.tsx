@@ -63,20 +63,18 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
         }
         const res = await signUpWithEmail(email, password)
         if (res.success) {
+          // ALWAYS display persistent "Check Your Email" screen.
+          // NEVER auto-close or auto-reload on sign-up so the user always sees instructions!
+          setIsConfirmationSent(true)
+
           if (res.sessionCreated) {
-            // Auto-login supported or email confirmation disabled
-            setMessage("Account created successfully! Loading your workspace...")
+            // Migrate guest data in background without interrupting user
             const supabase = getSupabaseBrowserClient()
-            const { data } = await supabase.auth.getUser()
-            if (data?.user?.id) {
-              await migrateGuestDataIfPresent(data.user.id)
-            }
-            setTimeout(() => {
-              window.location.reload()
-            }, 1000)
-          } else {
-            // Dedicated persistent confirmation screen
-            setIsConfirmationSent(true)
+            supabase.auth.getUser().then(({ data }) => {
+              if (data?.user?.id) {
+                migrateGuestDataIfPresent(data.user.id)
+              }
+            }).catch(() => {})
           }
         } else {
           setError(res.error || "Failed to create account.")
@@ -92,7 +90,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
           }
           setTimeout(() => {
             window.location.reload()
-          }, 1000)
+          }, 800)
         } else {
           setError(res.error || "Failed to sign in. Please verify your credentials.")
         }
@@ -107,13 +105,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   // Persistent "Check Your Email" View after Sign-Up
   if (isConfirmationSent) {
     return (
-      <div
-        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
-        onClick={(e) => {
-          // Prevent backdrop clicks from closing the confirmation screen
-          e.stopPropagation()
-        }}
-      >
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
         <div
           className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-200"
           onClick={(e) => e.stopPropagation()}
@@ -124,7 +116,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
               setMode("signin")
               onClose()
             }}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
             title="Close"
           >
             ✕
@@ -179,7 +171,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
                 setIsConfirmationSent(false)
                 onClose()
               }}
-              className="w-full py-2 px-4 text-gray-400 hover:text-gray-600 text-xs font-medium transition-colors"
+              className="w-full py-2 px-4 text-gray-400 hover:text-gray-600 text-xs font-medium transition-colors cursor-pointer"
             >
               Close
             </button>
@@ -190,17 +182,15 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+          title="Close"
         >
           ✕
         </button>
@@ -283,7 +273,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
                     setMode("signup")
                     setError(null)
                   }}
-                  className="font-bold text-indigo-600 hover:underline"
+                  className="font-bold text-indigo-600 hover:underline cursor-pointer"
                 >
                   Create one
                 </button>
@@ -297,7 +287,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
                     setMode("signin")
                     setError(null)
                   }}
-                  className="font-bold text-indigo-600 hover:underline"
+                  className="font-bold text-indigo-600 hover:underline cursor-pointer"
                 >
                   Sign in
                 </button>
