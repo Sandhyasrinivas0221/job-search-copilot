@@ -7,9 +7,10 @@ interface AuthModalProps {
   isOpen: boolean
   onClose: () => void
   currentUserId?: string
+  onConfirmationEmailSent?: (email: string) => void
 }
 
-export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose, currentUserId, onConfirmationEmailSent }: AuthModalProps) {
   const [mode, setMode] = useState<"signin" | "signup">("signin")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -23,7 +24,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   if (!isOpen) return null
 
   const handleResendConfirmation = async () => {
-    if (!email) return
+    if (!email || resendingEmail) return
     try {
       setResendingEmail(true)
       setResendStatus(null)
@@ -46,6 +47,8 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
+
     if (!email) {
       setError("Please enter your email address.")
       return
@@ -64,11 +67,11 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
         const res = await signUpWithEmail(email, password)
         if (res.success) {
           // ALWAYS display persistent "Check Your Email" screen.
-          // NEVER auto-close or auto-reload on sign-up so the user always sees instructions!
+          // NEVER auto-close or auto-reload on sign-up so the user always sees instructions.
           setIsConfirmationSent(true)
+          onConfirmationEmailSent?.(email)
 
           if (res.sessionCreated) {
-            // Migrate guest data in background without interrupting user
             const supabase = getSupabaseBrowserClient()
             supabase.auth.getUser().then(({ data }) => {
               if (data?.user?.id) {
@@ -82,15 +85,21 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
       } else {
         const res = await signInWithEmail(email, password || undefined)
         if (res.success) {
-          setMessage("Successfully signed in! Loading your workspace...")
-          const supabase = getSupabaseBrowserClient()
-          const { data } = await supabase.auth.getUser()
-          if (data?.user?.id) {
-            await migrateGuestDataIfPresent(data.user.id)
+          if (res.needsEmailConfirmation) {
+            // Magic link sent — show "Check Your Email" screen instead of reloading
+            setIsConfirmationSent(true)
+            onConfirmationEmailSent?.(email)
+          } else {
+            setMessage("Successfully signed in! Loading your workspace...")
+            const supabase = getSupabaseBrowserClient()
+            const { data } = await supabase.auth.getUser()
+            if (data?.user?.id) {
+              await migrateGuestDataIfPresent(data.user.id)
+            }
+            setTimeout(() => {
+              window.location.reload()
+            }, 800)
           }
-          setTimeout(() => {
-            window.location.reload()
-          }, 800)
         } else {
           setError(res.error || "Failed to sign in. Please verify your credentials.")
         }
@@ -102,15 +111,21 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
     }
   }
 
-  // Persistent "Check Your Email" View after Sign-Up
+  // Persistent "Check Your Email" View after Sign-Up or Magic Link
   if (isConfirmationSent) {
     return (
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div
+        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="check-email-heading"
+      >
         <div
-          className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100 text-center animate-in fade-in zoom-in-95 duration-200"
+          className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100 text-center"
           onClick={(e) => e.stopPropagation()}
         >
           <button
+            type="button"
             onClick={() => {
               setIsConfirmationSent(false)
               setMode("signin")
@@ -118,6 +133,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
             }}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
             title="Close"
+            aria-label="Close modal"
           >
             ✕
           </button>
@@ -126,16 +142,18 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
             ✉️
           </div>
 
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Check Your Email</h2>
+          <h2 id="check-email-heading" className="text-xl font-bold text-gray-900 mb-2">
+            Check Your Email
+          </h2>
           <p className="text-sm text-gray-600 mb-4">
-            We have sent an activation link to <strong className="text-indigo-600">{email}</strong>.
+            We have sent a confirmation link to <strong className="text-indigo-600">{email}</strong>.
           </p>
 
           <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-900 mb-5 text-left space-y-1.5 leading-relaxed">
             <p className="font-bold text-blue-950 flex items-center gap-1.5">
               <span>ℹ️</span> Next steps to activate:
             </p>
-            <p>1. Open your inbox and look for the confirmation email.</p>
+            <p>1. Open your inbox (and check Spam/Promotions if not found).</p>
             <p>2. Click the confirmation link to activate your private workspace.</p>
             <p>3. Return here and sign in with your password.</p>
           </div>
@@ -148,6 +166,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
 
           <div className="space-y-2">
             <button
+              type="button"
               onClick={() => {
                 setIsConfirmationSent(false)
                 setMode("signin")
@@ -158,15 +177,19 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
               I Confirmed My Email → Sign In
             </button>
             
-            <button
-              onClick={handleResendConfirmation}
-              disabled={resendingEmail}
-              className="w-full py-2 px-4 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200 disabled:opacity-50 cursor-pointer"
-            >
-              {resendingEmail ? "Sending..." : "Didn't receive email? Resend link"}
-            </button>
+            {mode === "signup" && (
+              <button
+                type="button"
+                onClick={handleResendConfirmation}
+                disabled={resendingEmail}
+                className="w-full py-2 px-4 text-xs font-semibold text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200 disabled:opacity-50 cursor-pointer"
+              >
+                {resendingEmail ? "Sending..." : "Didn't receive email? Resend link"}
+              </button>
+            )}
 
             <button
+              type="button"
               onClick={() => {
                 setIsConfirmationSent(false)
                 onClose()
@@ -182,15 +205,21 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+    >
       <div
         className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 relative border border-gray-100"
         onClick={(e) => e.stopPropagation()}
       >
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
           title="Close"
+          aria-label="Close modal"
         >
           ✕
         </button>
@@ -238,7 +267,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="e.g. you@example.com"
-              className="w-full px-3.5 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              className="w-full px-3.5 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
 
@@ -251,7 +280,7 @@ export function AuthModal({ isOpen, onClose, currentUserId }: AuthModalProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={mode === "signup" ? "At least 6 characters" : "Password (or leave blank for magic link)"}
-              className="w-full px-3.5 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              className="w-full px-3.5 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             />
           </div>
 

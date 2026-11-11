@@ -1,12 +1,21 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, SupabaseClient } from "@supabase/supabase-js"
 
 export const FALLBACK_TEST_USER_ID =
   process.env.NEXT_PUBLIC_TEST_USER_ID || "00000000-0000-0000-0000-000000000001"
 
+let browserClient: SupabaseClient | null = null
+
 export function getSupabaseBrowserClient() {
+  if (typeof window !== "undefined" && browserClient) {
+    return browserClient
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || ""
-  return createClient(url, key)
+  const client = createClient(url, key)
+  if (typeof window !== "undefined") {
+    browserClient = client
+  }
+  return client
 }
 
 export interface ClientUserSession {
@@ -132,13 +141,13 @@ export function getAuthRedirectUrl(): string {
 export async function signInWithEmail(
   email: string,
   password?: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; needsEmailConfirmation?: boolean; error?: string }> {
   try {
     const supabase = getSupabaseBrowserClient()
     if (password) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) return { success: false, error: error.message }
-      return { success: true }
+      return { success: true, needsEmailConfirmation: false }
     } else {
       const redirectTo = getAuthRedirectUrl()
       const { error } = await supabase.auth.signInWithOtp({
@@ -146,7 +155,7 @@ export async function signInWithEmail(
         options: { emailRedirectTo: redirectTo },
       })
       if (error) return { success: false, error: error.message }
-      return { success: true }
+      return { success: true, needsEmailConfirmation: true }
     }
   } catch (err) {
     return { success: false, error: String(err) }

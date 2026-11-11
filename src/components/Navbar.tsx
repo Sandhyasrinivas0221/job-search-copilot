@@ -14,12 +14,21 @@ export function Navbar() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [verifiedBanner, setVerifiedBanner] = useState(false)
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null)
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.search.includes("verified=true")) {
-      setVerifiedBanner(true)
-      const timer = setTimeout(() => setVerifiedBanner(false), 8000)
-      return () => clearTimeout(timer)
+    if (typeof window !== "undefined") {
+      if (window.location.search.includes("verified=true")) {
+        setVerifiedBanner(true)
+        sessionStorage.removeItem("pending_verification_email")
+        setPendingVerificationEmail(null)
+        const timer = setTimeout(() => setVerifiedBanner(false), 8000)
+        return () => clearTimeout(timer)
+      }
+      const savedPending = sessionStorage.getItem("pending_verification_email")
+      if (savedPending) {
+        setPendingVerificationEmail(savedPending)
+      }
     }
   }, [])
 
@@ -28,6 +37,11 @@ export function Navbar() {
       getClientSession().then(async (s) => {
         setSession(s)
         if (s?.userId && !s.isDemo) {
+          // Verified account signed in — clear any pending verification prompt
+          if (typeof window !== "undefined") {
+            sessionStorage.removeItem("pending_verification_email")
+          }
+          setPendingVerificationEmail(null)
           // If user is authenticated, migrate any residual guest data
           await migrateGuestDataIfPresent(s.userId)
         }
@@ -107,6 +121,7 @@ export function Navbar() {
   ]
 
   return (
+    <>
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
@@ -218,11 +233,39 @@ export function Navbar() {
         </div>
       )}
 
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        currentUserId={session?.userId}
-      />
+      {pendingVerificationEmail && !verifiedBanner && (
+        <div className="bg-indigo-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-inner">
+          <span>✉️</span>
+          <span>
+            Check your email: we sent a confirmation link to <strong>{pendingVerificationEmail}</strong>. Please click it to verify your account.
+          </span>
+          <button
+            onClick={() => {
+              setPendingVerificationEmail(null)
+              if (typeof window !== "undefined") {
+                sessionStorage.removeItem("pending_verification_email")
+              }
+            }}
+            className="ml-3 text-indigo-200 hover:text-white font-bold"
+            aria-label="Dismiss notice"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </nav>
+
+    <AuthModal
+      isOpen={isAuthModalOpen}
+      onClose={() => setIsAuthModalOpen(false)}
+      currentUserId={session?.userId}
+      onConfirmationEmailSent={(sentEmail) => {
+        setPendingVerificationEmail(sentEmail)
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("pending_verification_email", sentEmail)
+        }
+      }}
+    />
+    </>
   )
 }
