@@ -141,21 +141,10 @@ export function Navbar() {
             {/* Left: Brand Identity */}
             <div className="flex items-center gap-6 lg:gap-8">
               <Link href="/" className="flex items-center gap-2.5 group">
-                {/* Modern Geometric AI Logo Mark */}
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-105 group-hover:shadow-indigo-500/30 transition-all duration-200 ring-1 ring-white/40">
-                  <svg
-                    className="w-5 h-5 text-white drop-shadow-xs"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor" fillOpacity="0.25" />
-                    <circle cx="12" cy="12" r="3.2" fill="white" />
-                  </svg>
-                </div>
+                {/* Brand Rocket Icon */}
+                <span className="text-2xl sm:text-3xl transition-transform duration-200 group-hover:scale-110 group-hover:-translate-y-0.5">
+                  🚀
+                </span>
 
                 <div className="flex items-center gap-1.5">
                   <div className="flex flex-col">
@@ -168,9 +157,6 @@ export function Navbar() {
                       </span>
                     </div>
                   </div>
-                  <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 uppercase tracking-wider">
-                    AI 2.0
-                  </span>
                 </div>
               </Link>
 

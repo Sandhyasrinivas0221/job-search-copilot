@@ -300,45 +300,6 @@ export default function SuggestionsPage() {
               ))}
             </div>
           </div>
-
-          {/* Live External Job Board Search Shortcuts */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3">
-            <span className="text-xs font-medium text-slate-500">Direct Search Shortcuts:</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <a
-                href={`https://uk.indeed.com/jobs?q=${encodeURIComponent(targetRole)}&l=${encodeURIComponent(targetLocation)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-              >
-                Indeed UK ↗
-              </a>
-              <a
-                href={`https://www.reed.co.uk/jobs?keywords=${encodeURIComponent(targetRole)}&location=${encodeURIComponent(targetLocation)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-              >
-                Reed UK ↗
-              </a>
-              <a
-                href="https://www.jobs.nhs.uk/candidate/search"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors"
-              >
-                NHS Jobs ↗
-              </a>
-              <a
-                href={`https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(targetRole)}&location=${encodeURIComponent(targetLocation)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-sky-800 bg-sky-50 border border-sky-200 rounded-lg hover:bg-sky-100 transition-colors"
-              >
-                LinkedIn ↗
-              </a>
-            </div>
-          </div>
         </div>
 
         {/* Filter & Search Bar */}
