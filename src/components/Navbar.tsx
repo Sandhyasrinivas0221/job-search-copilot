@@ -3,7 +3,14 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { getClientSession, signOutUser, ClientUserSession, getAuthHeaders, getSupabaseBrowserClient, migrateGuestDataIfPresent } from "@/lib/client-auth"
+import {
+  getClientSession,
+  signOutUser,
+  ClientUserSession,
+  getAuthHeaders,
+  getSupabaseBrowserClient,
+  migrateGuestDataIfPresent,
+} from "@/lib/client-auth"
 import { AuthModal } from "@/components/AuthModal"
 
 export function Navbar() {
@@ -15,6 +22,7 @@ export function Navbar() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [verifiedBanner, setVerifiedBanner] = useState(false)
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -93,8 +101,11 @@ export function Navbar() {
         setSyncMessage(`Synced ${count} jobs!`)
         setTimeout(() => {
           setSyncMessage(null)
-          // Refresh window if on applications or pipeline page
-          if (pathname.includes("/dashboard/applications") || pathname.includes("/dashboard/pipeline") || pathname === "/") {
+          if (
+            pathname.includes("/dashboard/applications") ||
+            pathname.includes("/dashboard/pipeline") ||
+            pathname === "/"
+          ) {
             window.location.reload()
           }
         }, 2000)
@@ -111,161 +122,262 @@ export function Navbar() {
   }
 
   const navItems = [
-    { label: "Overview", href: "/" },
-    { label: "Applications", href: "/dashboard/applications" },
-    { label: "Pipeline", href: "/dashboard/pipeline" },
-    { label: "Suggestions", href: "/dashboard/suggestions" },
-    { label: "Learning", href: "/dashboard/learning" },
-    { label: "Metrics", href: "/dashboard/metrics" },
-    { label: "Settings", href: "/dashboard/settings" },
+    { label: "Overview", href: "/", icon: "📊" },
+    { label: "Applications", href: "/dashboard/applications", icon: "📝" },
+    { label: "Pipeline", href: "/dashboard/pipeline", icon: "📌" },
+    { label: "Suggestions", href: "/dashboard/suggestions", icon: "🎯", badge: "AI" },
+    { label: "Learning", href: "/dashboard/learning", icon: "💡" },
+    { label: "Metrics", href: "/dashboard/metrics", icon: "📈" },
+    { label: "Settings", href: "/dashboard/settings", icon: "⚙️" },
   ]
+
+  const userInitial = session?.user?.email ? session.user.email[0].toUpperCase() : "U"
 
   return (
     <>
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2 group">
-              <span className="text-2xl">🚀</span>
-              <span className="font-bold text-lg text-gray-900 group-hover:text-indigo-600 transition-colors">
-                Job Search Copilot
-              </span>
-            </Link>
-
-            <div className="hidden md:flex space-x-1">
-              {navItems.map((item) => {
-                const isActive =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname.startsWith(item.href)
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-indigo-50 text-indigo-700"
-                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                    }`}
+      <nav className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            {/* Left: Brand Identity */}
+            <div className="flex items-center gap-6 lg:gap-8">
+              <Link href="/" className="flex items-center gap-2.5 group">
+                {/* Modern Geometric AI Logo Mark */}
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-105 group-hover:shadow-indigo-500/30 transition-all duration-200 ring-1 ring-white/40">
+                  <svg
+                    className="w-5 h-5 text-white drop-shadow-xs"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   >
-                    {item.label}
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor" fillOpacity="0.25" />
+                    <circle cx="12" cy="12" r="3.2" fill="white" />
+                  </svg>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-extrabold text-base sm:text-lg text-slate-900 tracking-tight leading-none">
+                        Job Search
+                      </span>
+                      <span className="font-black text-base sm:text-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-sky-500 bg-clip-text text-transparent leading-none">
+                        Copilot
+                      </span>
+                    </div>
+                  </div>
+                  <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 uppercase tracking-wider">
+                    AI 2.0
+                  </span>
+                </div>
+              </Link>
+
+              {/* Center Navigation (Desktop) */}
+              <div className="hidden md:flex space-x-1 items-center">
+                {navItems.map((item) => {
+                  const isActive =
+                    item.href === "/"
+                      ? pathname === "/"
+                      : pathname.startsWith(item.href)
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`relative px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                        isActive
+                          ? "bg-indigo-50 text-indigo-700 shadow-xs border border-indigo-100"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/70"
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span className="text-[9px] font-extrabold uppercase bg-purple-100 text-purple-700 px-1 py-0.2 rounded font-mono">
+                          {item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Right: Actions, Gmail & Account Status */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {connectedGmail && (
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/dashboard/settings?tab=email"
+                    className="hidden lg:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                    title="Gmail connected and monitored"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                    <span className="max-w-[130px] truncate">{connectedGmail}</span>
                   </Link>
-                )
-              })}
+
+                  <button
+                    onClick={handleSyncInbox}
+                    disabled={syncing}
+                    className="inline-flex items-center px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/70 transition-all disabled:opacity-50"
+                    title="Sync Gmail inbox for new job applications and status updates"
+                  >
+                    <span className={`mr-1.5 ${syncing ? "animate-spin" : ""}`}>🔄</span>
+                    <span className="hidden sm:inline">
+                      {syncMessage || (syncing ? "Syncing..." : "Sync Inbox")}
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* User Account Controls */}
+              {session && (
+                <div className="flex items-center gap-2">
+                  {session.isDemo ? (
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80"
+                        title={`Guest Session: ${session.userId}`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                        Guest Mode
+                      </span>
+                      <button
+                        onClick={() => setIsAuthModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl shadow-xs hover:shadow-md transition-all"
+                      >
+                        <span>✨</span>
+                        <span>Sign In / Register</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {/* Authenticated User Pill */}
+                      <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200/80 shadow-xs">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-[11px] flex items-center justify-center shadow-xs">
+                          {userInitial}
+                        </div>
+                        <span className="hidden sm:inline text-xs font-semibold text-slate-800 max-w-[140px] truncate">
+                          {session.user?.email || "Account"}
+                        </span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Verified Session"></span>
+                      </div>
+
+                      <button
+                        onClick={() => signOutUser()}
+                        className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-slate-200"
+                        title="Sign out of account"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mobile Menu Hamburger */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                aria-label="Toggle navigation menu"
+              >
+                {mobileMenuOpen ? (
+                  <span className="text-xl leading-none">✕</span>
+                ) : (
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-3">
-            {connectedGmail && (
-              <div className="flex items-center gap-2">
+        {/* Mobile Dropdown Navigation */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-slate-200 bg-white/95 px-4 pt-2 pb-4 space-y-1 shadow-lg animate-in slide-in-from-top-2">
+            {navItems.map((item) => {
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href)
+
+              return (
                 <Link
-                  href="/dashboard/settings?tab=email"
-                  className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                  title="Gmail connected and monitored"
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    isActive
+                      ? "bg-indigo-50 text-indigo-700"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                  {connectedGmail}
-                </Link>
-
-                <button
-                  onClick={handleSyncInbox}
-                  disabled={syncing}
-                  className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition-colors disabled:opacity-50"
-                  title="Sync Gmail inbox for new job applications and status updates"
-                >
-                  <span className={`mr-1.5 ${syncing ? "animate-spin" : ""}`}>🔄</span>
-                  {syncMessage || (syncing ? "Syncing..." : "Sync Inbox")}
-                </button>
-              </div>
-            )}
-
-            {session && (
-              <div className="flex items-center gap-2">
-                {session.isDemo ? (
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
-                      title={`Private Guest Session: ${session.userId}`}
-                    >
-                      Guest Workspace
-                    </span>
-                    <button
-                      onClick={() => setIsAuthModalOpen(true)}
-                      className="px-3 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-200"
-                    >
-                      Sign In / Register
-                    </button>
-                  </div>
-                ) : (
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
-                      {session.user?.email || "Account"}
-                    </span>
-                    <button
-                      onClick={() => signOutUser()}
-                      className="px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
-                      title="Sign out of session"
-                    >
-                      Sign Out
-                    </button>
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
                   </div>
-                )}
-              </div>
-            )}
+                  {item.badge && (
+                    <span className="text-[10px] font-mono font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </div>
-        </div>
-      </div>
+        )}
 
-      {verifiedBanner && (
-        <div className="bg-emerald-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-inner">
-          <span>✅</span>
-          <span>Your email has been verified! You are now logged into your workspace.</span>
-          <button
-            onClick={() => setVerifiedBanner(false)}
-            className="ml-3 text-emerald-200 hover:text-white font-bold"
-            aria-label="Dismiss banner"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+        {/* Email Verification Success Banner */}
+        {verifiedBanner && (
+          <div className="bg-emerald-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-inner">
+            <span>✅</span>
+            <span>Your email has been verified! You are now logged into your workspace.</span>
+            <button
+              onClick={() => setVerifiedBanner(false)}
+              className="ml-3 text-emerald-200 hover:text-white font-bold"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
-      {pendingVerificationEmail && !verifiedBanner && (
-        <div className="bg-indigo-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-inner">
-          <span>✉️</span>
-          <span>
-            Check your email: we sent a confirmation link to <strong>{pendingVerificationEmail}</strong>. Please click it to verify your account.
-          </span>
-          <button
-            onClick={() => {
-              setPendingVerificationEmail(null)
-              if (typeof window !== "undefined") {
-                sessionStorage.removeItem("pending_verification_email")
-              }
-            }}
-            className="ml-3 text-indigo-200 hover:text-white font-bold"
-            aria-label="Dismiss notice"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-    </nav>
+        {/* Check Your Email Verification Banner */}
+        {pendingVerificationEmail && !verifiedBanner && (
+          <div className="bg-indigo-600 text-white px-4 py-2 text-center text-xs sm:text-sm font-medium flex items-center justify-center gap-2 shadow-inner">
+            <span>✉️</span>
+            <span>
+              Check your email: we sent a confirmation link to <strong>{pendingVerificationEmail}</strong>. Please click it to verify your account.
+            </span>
+            <button
+              onClick={() => {
+                setPendingVerificationEmail(null)
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem("pending_verification_email")
+                }
+              }}
+              className="ml-3 text-indigo-200 hover:text-white font-bold"
+              aria-label="Dismiss notice"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </nav>
 
-    <AuthModal
-      isOpen={isAuthModalOpen}
-      onClose={() => setIsAuthModalOpen(false)}
-      currentUserId={session?.userId}
-      onConfirmationEmailSent={(sentEmail) => {
-        setPendingVerificationEmail(sentEmail)
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("pending_verification_email", sentEmail)
-        }
-      }}
-    />
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUserId={session?.userId}
+        onConfirmationEmailSent={(sentEmail) => {
+          setPendingVerificationEmail(sentEmail)
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("pending_verification_email", sentEmail)
+          }
+        }}
+      />
     </>
   )
 }

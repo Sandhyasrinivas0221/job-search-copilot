@@ -20,7 +20,12 @@ export class JobMarketAgent {
   private targetLocation: string
   private industryField: string
 
-  constructor(userId: string, user: User) {
+  constructor(
+    userId: string,
+    user: User,
+    overrideRole?: string | null,
+    overrideLocation?: string | null
+  ) {
     this.userId = userId
     this.user = user
 
@@ -33,9 +38,9 @@ export class JobMarketAgent {
       }
     }
 
-    this.targetRole = parsedBio.target_role || "Job Candidate"
-    this.targetLocation = parsedBio.target_location || "United Kingdom"
-    this.industryField = parsedBio.industry_field || "General Professional"
+    this.targetRole = (overrideRole && overrideRole.trim()) || parsedBio.target_role || "Care Worker"
+    this.targetLocation = (overrideLocation && overrideLocation.trim()) || parsedBio.target_location || "United Kingdom"
+    this.industryField = parsedBio.industry_field || this.targetRole || "General Professional"
   }
 
   /**
@@ -112,6 +117,31 @@ export class JobMarketAgent {
       roleLower.includes("warehouse")
     ) {
       return this.generateLogisticsJobs()
+    }
+
+    if (
+      fieldLower.includes("marketing") ||
+      roleLower.includes("marketing") ||
+      roleLower.includes("growth") ||
+      roleLower.includes("social media")
+    ) {
+      return this.generateMarketingJobs()
+    }
+    if (
+      fieldLower.includes("finance") ||
+      fieldLower.includes("accounting") ||
+      roleLower.includes("accountant") ||
+      roleLower.includes("bookkeeper") ||
+      roleLower.includes("analyst")
+    ) {
+      return this.generateFinanceJobs()
+    }
+    if (
+      fieldLower.includes("customer") ||
+      roleLower.includes("customer service") ||
+      roleLower.includes("support")
+    ) {
+      return this.generateAdminJobs()
     }
 
     return this.generateGeneralIndustryJobs()
@@ -348,10 +378,94 @@ export class JobMarketAgent {
   }
 
   /**
+   * Marketing & Growth roles
+   */
+  private generateMarketingJobs(): JobListingRaw[] {
+    const loc = this.targetLocation
+    return [
+      {
+        title: "Digital Marketing Specialist",
+        company: "Vanguard Media Group",
+        location: loc,
+        salary: "£32,000 - £42,000 / yr",
+        description:
+          "Manage multi-channel acquisition campaigns across Google Ads, Meta, and SEO. Optimize conversion funnels, track analytics, and deliver high ROI campaigns.",
+        source: "LinkedIn",
+        url: `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent("Digital Marketing")}&location=${encodeURIComponent(loc)}`,
+        easyApply: true,
+      },
+      {
+        title: "Content & Social Media Executive",
+        company: "BrandSpark Agency",
+        location: loc,
+        salary: "£26,000 - £34,000 / yr",
+        description:
+          "Create engaging multimedia content, manage community discussions, and craft compelling narratives across social platforms and editorial channels.",
+        source: "Reed UK",
+        url: `https://www.reed.co.uk/jobs?keywords=${encodeURIComponent("Content Creator")}&location=${encodeURIComponent(loc)}`,
+        easyApply: true,
+      },
+      {
+        title: "Growth Marketing Manager",
+        company: "OmniReach Digital",
+        location: loc,
+        salary: "£48,000 - £62,000 / yr",
+        description:
+          "Lead customer lifecycle experiments, oversee retention workflows, and collaborate with product teams on activation and viral loops.",
+        source: "Indeed UK",
+        url: `https://uk.indeed.com/jobs?q=${encodeURIComponent("Growth Marketing")}&l=${encodeURIComponent(loc)}`,
+        easyApply: false,
+      },
+    ]
+  }
+
+  /**
+   * Finance, Accounting & Analytics roles
+   */
+  private generateFinanceJobs(): JobListingRaw[] {
+    const loc = this.targetLocation
+    return [
+      {
+        title: "Financial Accountant",
+        company: "Sterling Advisory Partners",
+        location: loc,
+        salary: "£40,000 - £52,000 / yr",
+        description:
+          "Prepare statutory accounts, balance sheet reconciliations, VAT returns, and quarterly management reports in compliance with UK GAAP / IFRS.",
+        source: "Reed UK",
+        url: `https://www.reed.co.uk/jobs?keywords=${encodeURIComponent("Accountant")}&location=${encodeURIComponent(loc)}`,
+        easyApply: true,
+      },
+      {
+        title: "Bookkeeper & Accounts Assistant",
+        company: "Crest Financial Services",
+        location: loc,
+        salary: "£25,000 - £30,000 / yr",
+        description:
+          "Maintain sales and purchase ledgers, conduct bank reconciliations on Xero/QuickBooks, and assist with month-end payroll processes.",
+        source: "Indeed UK",
+        url: `https://uk.indeed.com/jobs?q=${encodeURIComponent("Bookkeeper")}&l=${encodeURIComponent(loc)}`,
+        easyApply: true,
+      },
+      {
+        title: "Commercial Financial Analyst",
+        company: "Meridian Capital Group",
+        location: loc,
+        salary: "£45,000 - £58,000 / yr",
+        description:
+          "Build predictive financial models, track variance against budget, and present strategic financial insights to senior leadership.",
+        source: "LinkedIn",
+        url: `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent("Financial Analyst")}&location=${encodeURIComponent(loc)}`,
+        easyApply: false,
+      },
+    ]
+  }
+
+  /**
    * Dynamic job generator for any other profession
    */
   private generateGeneralIndustryJobs(): JobListingRaw[] {
-    const role = this.targetRole || "Professional"
+    const role = this.targetRole || "Professional Specialist"
     const loc = this.targetLocation
 
     return [
@@ -359,31 +473,41 @@ export class JobMarketAgent {
         title: role,
         company: "Enterprise Solutions Group",
         location: loc,
-        salary: "Competitive",
-        description: `Exciting opportunity for a qualified ${role}. Work within an established team delivering exceptional standards and collaborative performance in ${this.industryField}.`,
-        source: "Indeed",
-        url: `https://www.indeed.com/jobs?q=${encodeURIComponent(role)}&l=${encodeURIComponent(loc)}`,
+        salary: "£30,000 - £42,000 / yr",
+        description: `Exciting opportunity for a qualified ${role}. Work within an established team delivering exceptional standards, quality output, and collaborative performance in ${this.industryField}.`,
+        source: "Indeed UK",
+        url: `https://uk.indeed.com/jobs?q=${encodeURIComponent(role)}&l=${encodeURIComponent(loc)}`,
         easyApply: true,
       },
       {
         title: `Senior ${role}`,
         company: "Apex Global Partners",
         location: loc,
-        salary: "Competitive salary + benefits",
-        description: `Lead key operations, coordinate projects, and mentor team members in our growing ${this.industryField} division.`,
-        source: "Reed",
+        salary: "£45,000 - £58,000 / yr",
+        description: `Lead key operations, coordinate team milestones, and mentor team members in our growing ${this.industryField} division with competitive benefits.`,
+        source: "Reed UK",
         url: `https://www.reed.co.uk/jobs?keywords=${encodeURIComponent(role)}&location=${encodeURIComponent(loc)}`,
         easyApply: true,
       },
       {
-        title: `Lead ${role}`,
+        title: `${role} Specialist / Consultant`,
         company: "National Service Network",
         location: loc,
-        salary: "Attractive package",
-        description: `Manage day-to-day delivery, quality compliance, and stakeholder relationships across regional sites.`,
+        salary: "£36,000 - £48,000 / yr",
+        description: `Manage day-to-day service delivery, quality compliance, and stakeholder relationships across regional sites in ${loc}.`,
         source: "LinkedIn",
         url: `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(role)}&location=${encodeURIComponent(loc)}`,
         easyApply: false,
+      },
+      {
+        title: `Junior to Mid ${role}`,
+        company: "Beacon Resource Partners",
+        location: loc,
+        salary: "£26,000 - £34,000 / yr",
+        description: `Dynamic entry or intermediate level role with excellent structured training, career progression, and supportive mentorship.`,
+        source: "Totaljobs UK",
+        url: `https://www.totaljobs.com/jobs?keywords=${encodeURIComponent(role)}&location=${encodeURIComponent(loc)}`,
+        easyApply: true,
       },
     ]
   }
@@ -413,16 +537,29 @@ export class JobMarketAgent {
 
     const matchScore =
       userSkills.length > 0
-        ? Math.min(96, Math.max(72, Math.round((matchedCount / userSkills.length) * 100) + 65))
-        : 85
+        ? Math.min(97, Math.max(74, Math.round((matchedCount / userSkills.length) * 100) + 68))
+        : Math.floor(Math.random() * 10) + 85
+
+    // Parse salary values if available
+    let salaryMin: number | null = null
+    let salaryMax: number | null = null
+    if (listing.salary) {
+      const numbers = listing.salary.replace(/,/g, "").match(/\d+/g)
+      if (numbers && numbers.length >= 2) {
+        salaryMin = parseInt(numbers[0], 10)
+        salaryMax = parseInt(numbers[1], 10)
+      } else if (numbers && numbers.length === 1) {
+        salaryMin = parseInt(numbers[0], 10)
+      }
+    }
 
     return await createJobSuggestion({
       user_id: this.userId,
       job_title: listing.title,
       company_name: listing.company,
       location: listing.location,
-      salary_min: null,
-      salary_max: null,
+      salary_min: salaryMin,
+      salary_max: salaryMax,
       description: listing.description,
       job_url: listing.url,
       source_site: listing.source,

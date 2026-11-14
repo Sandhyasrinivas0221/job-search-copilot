@@ -20,13 +20,20 @@ export async function POST(request: NextRequest) {
   const rateLimitResponse = checkRateLimit(request, { limit: 20, windowSeconds: 60 })
   if (rateLimitResponse) return rateLimitResponse
   try {
+    let body: any = {}
+    try {
+      body = await request.clone().json().catch(() => ({}))
+    } catch {}
+
     const searchParams = request.nextUrl.searchParams
-    const userId = searchParams.get("userId")
+    const userId = searchParams.get("userId") || body?.userId
+    const role = searchParams.get("role") || body?.role
+    const location = searchParams.get("location") || body?.location
 
     if (userId) {
-      console.log(`[trigger/jobs] Running job market search for single user: ${userId}`)
+      console.log(`[trigger/jobs] Running job market search for single user: ${userId} (role: ${role || "default"}, loc: ${location || "default"})`)
       const user = await getOrCreateUser(userId)
-      const agent = new JobMarketAgent(userId, user)
+      const agent = new JobMarketAgent(userId, user, role, location)
       const suggestions = await agent.findJobsForUser()
 
       const { data: createdSuggestions } = await supabaseAdmin
@@ -34,14 +41,14 @@ export async function POST(request: NextRequest) {
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
-        .limit(15)
+        .limit(25)
 
       return NextResponse.json({
         success: true,
         message: "Job search completed successfully",
         jobsFound: suggestions.length,
-        suggestionsCreated: createdSuggestions?.length || 0,
-        suggestions: createdSuggestions || [],
+        suggestionsCreated: createdSuggestions?.length || suggestions.length,
+        suggestions: createdSuggestions || suggestions,
       })
     }
 
